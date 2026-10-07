@@ -1,0 +1,10 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  validate-schemas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check JSON schemas parse
+        run: |
+          for f in schemas/*.json; do python3 -m json.tool "$f" > /dev/null; done

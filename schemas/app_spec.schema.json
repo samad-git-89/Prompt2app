@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AppSpec",
+  "type": "object",
+  "required": ["name", "description", "pages", "data_models"],
+  "properties": {
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "auth": { "type": "string", "enum": ["none", "email_password", "google"] },
+    "pages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["route", "purpose"],
+        "properties": {
+          "route": { "type": "string" },
+          "purpose": { "type": "string" },
+          "components": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "data_models": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["collection", "fields"],
+        "properties": {
+          "collection": { "type": "string" },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "type"],
+              "properties": {
+                "name": { "type": "string" },
+                "type": { "type": "string" },
+                "required": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "integrations": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["sheets", "drive", "gmail", "calendar", "apps_script"] }
+    }
+  }
+}
