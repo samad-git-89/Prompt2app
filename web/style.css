@@ -1,0 +1,85 @@
+body {
+    font-family: sans-serif;
+    margin: 20px;
+    background-color: #f4f4f4;
+    color: #333;
+}
+
+#app {
+    max-width: 600px;
+    margin: 0 auto;
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+h1 {
+    text-align: center;
+    color: #007bff;
+}
+
+#addBookForm {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+#bookTitle {
+    flex-grow: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+button {
+    padding: 10px 15px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+#readingList {
+    list-style: none;
+    padding: 0;
+}
+
+#readingList li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
+}
+
+#readingList li:last-child {
+    border-bottom: none;
+}
+
+#readingList li span {
+    flex-grow: 1;
+}
+
+#readingList li.read span {
+    text-decoration: line-through;
+    color: #666;
+}
+
+.toggle-read {
+    background-color: #28a745; /* Green for read */
+}
+
+.toggle-read[data-read="true"] {
+    background-color: #ffc107; /* Yellow for unread */
+}
+
+.toggle-read:hover {
+    opacity: 0.9;
+}

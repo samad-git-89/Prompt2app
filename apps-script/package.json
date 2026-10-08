@@ -1,0 +1,8 @@
+{
+  "name": "prompt2app-apps-script-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

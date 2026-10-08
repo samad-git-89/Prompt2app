@@ -1,7 +1,7 @@
 # Roadmap
 
 - [ ] Phase 0: Repository, schema, conventions (this commit)
-- [ ] Phase 1: Prompt-only pipeline with Gemini (spec -> code -> validate -> repair)
+- [x] Phase 1: Prompt-only pipeline with Gemini (spec -> code -> validate -> repair)
 - [ ] Phase 2: Eval set (200-500 requests) and baseline metrics
 - [ ] Phase 3: Retrieval of templates and examples
 - [ ] Phase 4: Gold dataset (50-100 Firebase + Apps Script examples), synthetic expansion

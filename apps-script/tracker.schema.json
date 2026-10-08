@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Prompt2app Execution Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "runId",
+    "startedAt",
+    "completedAt",
+    "durationMs",
+    "model",
+    "parameters",
+    "generation",
+    "codeVersion",
+    "outcome"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "completedAt": { "type": "string", "format": "date-time" },
+    "durationMs": { "type": "integer", "minimum": 0 },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "name"],
+      "properties": {
+        "provider": { "const": "gemini" },
+        "name": { "type": "string", "minLength": 1 }
+      }
+    },
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "temperature": { "type": "number", "minimum": 0, "maximum": 2 },
+        "topP": { "type": "number", "minimum": 0, "maximum": 1 },
+        "topK": { "type": "integer", "minimum": 1 },
+        "maxOutputTokens": { "type": "integer", "minimum": 1 },
+        "candidateCount": { "type": "integer", "minimum": 1, "maximum": 8 },
+        "thinkingBudget": { "type": "integer", "minimum": 0 },
+        "responseMimeType": { "enum": ["application/json", "text/plain"] }
+      }
+    },
+    "generation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["promptSha256", "repairAttempts", "fileCount", "validation"],
+      "properties": {
+        "promptSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "repairAttempts": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "fileCount": { "type": "integer", "minimum": 0 },
+        "validation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["valid", "errorCount"],
+          "properties": {
+            "valid": { "type": "boolean" },
+            "errorCount": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "codeVersion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "fileHashes"],
+      "properties": {
+        "commit": { "type": ["string", "null"] },
+        "fileHashes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "sha256", "bytes"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+              "bytes": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": { "enum": ["success", "failed"] },
+        "errorCode": { "type": "string", "pattern": "^[A-Z0-9_]{1,64}$" }
+      }
+    }
+  }
+}
