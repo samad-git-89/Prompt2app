@@ -44,3 +44,10 @@ or `--category synthetic` to copy images into their respective `data/` tier. Pas
 <labels-directory>` to validate and copy matching YOLO detection labels. Run the `scan` command
 to validate staged labels, or `write-yaml` to regenerate `data/dataset.yaml` with absolute paths.
 Replace the placeholder class name in that map before training.
+
+For labeled UI screenshots, run
+`python training/scripts/ingest_ui_data.py --source <images> --labels <labels-directory>`.
+The image and matching `.txt` label paths must have the same relative names. The ingestion
+script validates YOLO rows, clamps finite box coordinates to `[0, 1]`, routes pairs into
+`data/synthetic/images/` and `data/synthetic/labels/` through the shared dataset pipeline,
+sets ingested files and the dataset map to mode `644`, and updates `data/dataset.yaml`.
