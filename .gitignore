@@ -15,5 +15,6 @@ build/
 apps-script/.local/
 # model artifacts
 training/outputs/
+training/weights/
 *.safetensors
 *.gguf

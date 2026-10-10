@@ -1,0 +1,4 @@
+path: "/workspaces/Prompt2app/data"
+train: "/workspaces/Prompt2app/data/synthetic/images"
+val: "/workspaces/Prompt2app/data/gold/images"
+names: [replace-with-class-name]

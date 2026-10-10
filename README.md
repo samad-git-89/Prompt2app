@@ -21,7 +21,7 @@ prompt -> spec (JSON) -> code generation (file by file) -> validate (lint, build
 | `data/gold/` | Hand-written gold examples (prompt -> spec -> code) |
 | `data/synthetic/` | Model-generated examples that passed build + tests |
 | `data/eval/` | Held-out test requests. Never train on these |
-| `training/` | LoRA/QLoRA fine-tuning scripts and configs (later phase) |
+| `training/` | YOLO weight/data preparation and later LoRA/QLoRA fine-tuning |
 | `eval/` | Evaluation harness: build rate, test pass rate, repair loops |
 | `docs/` | Architecture, roadmap, decisions |
 
@@ -32,3 +32,15 @@ prompt -> spec (JSON) -> code generation (file by file) -> validate (lint, build
 - Generated Firestore rules must default to deny.
 
 See `docs/roadmap.md` for phases.
+
+## YOLO data preparation
+
+Install the optional downloader dependency with `python -m pip install -r training/requirements.txt`.
+Set `HF_TOKEN` in the environment, then run `python training/scripts/download_yolo_weights.py`
+to download the foundational YOLOv8n weights into the ignored `training/weights/` directory.
+
+Use `python training/scripts/dataset_pipeline.py route --source <images> --category gold`
+or `--category synthetic` to copy images into their respective `data/` tier. Pass `--labels
+<labels-directory>` to validate and copy matching YOLO detection labels. Run the `scan` command
+to validate staged labels, or `write-yaml` to regenerate `data/dataset.yaml` with absolute paths.
+Replace the placeholder class name in that map before training.

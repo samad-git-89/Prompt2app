@@ -1,4 +1,7 @@
 {
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "dotenv": "^18.0.6"
   }
