@@ -22,7 +22,7 @@ TRAINING_CONFIG = {
     "imgsz": 640,
     "batch": 4,
     "device": "cpu",
-    "project": "training/runs",
+    "project": str(REPOSITORY_ROOT / "training" / "runs"),
 }
 
 
@@ -71,7 +71,7 @@ def validate_configuration() -> tuple[dict, dict[str, int]]:
         if not os.access(image_dir, os.R_OK | os.X_OK):
             raise PermissionError(f"dataset {split} image directory is not readable: {image_dir}")
 
-        labels_dir = image_dir.parent.parent / "labels"
+        labels_dir = image_dir.parent / "labels"
         image_count = len(dataset_pipeline.image_files(image_dir))
         labeled_count = sum(
             (labels_dir / image.relative_to(image_dir).with_suffix(".txt")).is_file()
@@ -121,7 +121,41 @@ def main() -> None:
             "Run the data ingestion workflow first."
         )
 
+    print("Starting YOLO training run")
     model.train(data=str(DATASET_PATH), **TRAINING_CONFIG)
+
+    training_dir = Path(model.trainer.save_dir)
+    checkpoints = [training_dir / "weights" / name for name in ("best.pt", "last.pt")]
+    missing_checkpoints = [path for path in checkpoints if not path.is_file()]
+    if missing_checkpoints:
+        raise FileNotFoundError(
+            "training completed without expected checkpoint(s): "
+            + ", ".join(str(path) for path in missing_checkpoints)
+        )
+    print("Training checkpoints verified:")
+    for checkpoint in checkpoints:
+        print(f"  {checkpoint.resolve()}")
+
+    print("Starting post-training baseline evaluation")
+    evaluation_results = model.val(
+        data=str(DATASET_PATH),
+        imgsz=TRAINING_CONFIG["imgsz"],
+        batch=TRAINING_CONFIG["batch"],
+        device=TRAINING_CONFIG["device"],
+        project=TRAINING_CONFIG["project"],
+        name="baseline-evaluation",
+        exist_ok=True,
+    )
+    metrics = {
+        name: float(value)
+        for name, value in evaluation_results.results_dict.items()
+    }
+    print(json.dumps({
+        "status": "complete",
+        "training_dir": str(training_dir.resolve()),
+        "checkpoints": [str(path.resolve()) for path in checkpoints],
+        "post_training_validation": metrics,
+    }, indent=2))
 
 
 if __name__ == "__main__":

@@ -19,3 +19,4 @@ training/runs/
 training/weights/
 *.safetensors
 *.gguf
+data/*/labels.cache

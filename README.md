@@ -65,4 +65,8 @@ Run `python training/scripts/train_yolo.py --dry-run` to validate the weights, a
 paths, class map, permissions, and baseline training settings without starting training. Run
 `python training/scripts/train_yolo.py` to train for 3 epochs on CPU with batch size 4 and
 640-pixel images. Both train and validation splits must contain labeled image/label pairs;
-checkpoints and other training artifacts go to the ignored `training/runs/` directory.
+checkpoints and other training artifacts go to the ignored `training/runs/` directory. To seed a
+small deterministic smoke-test dataset, run `python training/scripts/seed_mock_data.py`; it creates
+four synthetic and two gold image/label pairs and refuses to overwrite existing fixtures. The
+launcher verifies `best.pt` and `last.pt`, then runs a post-training validation pass. Pass
+`--force` to the seeder to replace its named mock fixtures when refreshing the smoke-test data.
