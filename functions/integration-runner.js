@@ -10,6 +10,12 @@ service cloud.firestore {
   }
 }`;
 
+const integrationTargets = [
+  'firestore.rules',
+  'web/index.html',
+  'functions/generated/backend-api.js',
+];
+
 const smokeTestFiles = [
   { path: 'index.html', content: '<!doctype html><main id="app"></main>\n' },
   { path: 'app.js', content: 'document.querySelector("#app").textContent = "UI preview";\n' },
@@ -59,13 +65,17 @@ async function main() {
 
   const options = {
     appSpec,
+    firestoreRules,
     repoRoot: outputRoot,
+    requiredTargets: integrationTargets,
+    overwriteTargets: integrationTargets,
   };
   if (dryRun) {
     options.apiKey = 'integration-dry-run';
     options.fetchImpl = dryRunFetcher(appSpec, visualProfile);
   }
 
+  console.error('Applying the integration locked deny-all Firestore rules before final validation.');
   const { result, written } = await runAndWrite(prompt, options);
   if (!isDeepStrictEqual(result.spec, appSpec)) {
     throw new Error('Phase 1 pipeline changed the supplied visual AppSpec');

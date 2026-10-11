@@ -61,6 +61,72 @@ test('writes validated files with safe permissions and refuses overwrites', asyn
   }
 });
 
+test('overwrites only explicitly approved regular-file targets', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'prompt2app-writer-'));
+  try {
+    await mkdir(join(root, 'web'));
+    await mkdir(join(root, 'functions', 'generated'), { recursive: true });
+    await writeFile(join(root, 'web', 'index.html'), 'old frontend\n');
+    await writeFile(join(root, 'firestore.rules'), 'old rules\n');
+    await writeFile(join(root, 'functions', 'generated', 'backend-api.js'), 'old backend\n');
+
+    const files = [
+      { path: 'index.html', content: '<main>Updated</main>\n' },
+      { path: 'backend-api.js', content: 'export function handleRequest() { return "updated"; }\n' },
+      { path: 'firestore.rules', content: rules },
+    ];
+    const written = await writeGeneratedFiles(files, {
+      repoRoot: root,
+      overwriteTargets: [
+        'web/index.html',
+        'functions/generated/backend-api.js',
+        'firestore.rules',
+      ],
+    });
+
+    assert.equal(written.length, 3);
+    assert.equal(await readFile(join(root, 'web', 'index.html'), 'utf8'), files[0].content);
+    assert.equal(await readFile(join(root, 'functions', 'generated', 'backend-api.js'), 'utf8'), files[1].content);
+    assert.equal(await readFile(join(root, 'firestore.rules'), 'utf8'), rules);
+    for (const path of [
+      join(root, 'web', 'index.html'),
+      join(root, 'functions', 'generated', 'backend-api.js'),
+      join(root, 'firestore.rules'),
+    ]) {
+      assert.equal((await stat(path)).mode & 0o777, 0o644);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('deny-all Firestore validation runs before overwriting any existing files', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'prompt2app-writer-'));
+  try {
+    await mkdir(join(root, 'web'));
+    await writeFile(join(root, 'web', 'index.html'), 'existing frontend\n');
+    await writeFile(join(root, 'firestore.rules'), 'existing deny rules\n');
+
+    await assert.rejects(
+      writeGeneratedFiles([
+        { path: 'index.html', content: '<main>Should not write</main>\n' },
+        {
+          path: 'firestore.rules',
+          content: 'match /{document=**} { allow read, write: if true; }',
+        },
+      ], {
+        repoRoot: root,
+        overwriteTargets: ['web/index.html', 'firestore.rules'],
+      }),
+      /every Firestore allow rule/,
+    );
+    assert.equal(await readFile(join(root, 'web', 'index.html'), 'utf8'), 'existing frontend\n');
+    assert.equal(await readFile(join(root, 'firestore.rules'), 'utf8'), 'existing deny rules\n');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('backend-only mode adds backend scripts without touching existing frontend files', async () => {
   const root = await mkdtemp(join(tmpdir(), 'prompt2app-writer-'));
   try {

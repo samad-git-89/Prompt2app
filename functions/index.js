@@ -109,6 +109,7 @@ function formatValidationErrors(errors) {
 export async function runPipeline({
   prompt,
   appSpec,
+  firestoreRules,
   apiKey = process.env.GEMINI_API_KEY,
   model = defaultModel,
   maxRepairs = 3,
@@ -120,6 +121,9 @@ export async function runPipeline({
   if (!apiKey) throw new Error('GEMINI_API_KEY is required');
   if (!Number.isInteger(maxRepairs) || maxRepairs < 0 || maxRepairs > 3) {
     throw new RangeError('maxRepairs must be an integer from 0 to 3');
+  }
+  if (firestoreRules !== undefined && typeof firestoreRules !== 'string') {
+    throw new TypeError('firestoreRules must be a string when provided');
   }
 
   const specResult = appSpec === undefined
@@ -169,6 +173,14 @@ export async function runPipeline({
       prompt: generationPrompt.join('\n\n'),
     });
     files = generated?.files;
+    if (firestoreRules !== undefined && Array.isArray(files)) {
+      const rulesIndex = files.findIndex((file) => file?.path === 'firestore.rules');
+      if (rulesIndex === -1) {
+        files.push({ path: 'firestore.rules', content: firestoreRules });
+      } else {
+        files[rulesIndex] = { ...files[rulesIndex], content: firestoreRules };
+      }
+    }
     validationErrors = validateGeneratedFiles(files);
     if (validationErrors.length === 0) {
       return { spec: specResult, files, validation: { valid: true, errors: [] }, repairAttempts };

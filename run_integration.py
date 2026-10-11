@@ -16,6 +16,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parent
 INFERENCE_SCRIPT = REPOSITORY_ROOT / "training" / "scripts" / "evaluate_and_infer.py"
 NODE_RUNNER = REPOSITORY_ROOT / "functions" / "integration-runner.js"
 DEFAULT_WEIGHTS = REPOSITORY_ROOT / "training" / "runs" / "train" / "weights" / "best.pt"
+PROJECT_PYTHON = REPOSITORY_ROOT / ".venv" / "bin" / "python"
 
 
 def transform_profile(profile: dict, image_name: str) -> dict:
@@ -177,7 +178,7 @@ def run_integration(
 
         print("[1/5] Vision extraction: loading custom checkpoint and detecting components", flush=True)
         run_command([
-            sys.executable,
+            str(PROJECT_PYTHON if PROJECT_PYTHON.is_file() else Path(sys.executable)),
             str(INFERENCE_SCRIPT),
             "--image-dir",
             str(image_dir),
@@ -204,7 +205,8 @@ def run_integration(
             "Generate a complete full-stack UI prototype from the supplied visual profile and "
             "validated AppSpec. Preserve the detected pixel positions in the layout. Use only "
             "the locked component tokens already present in the AppSpec and do not invent "
-            "additional tracked components. Include a frontend and backend."
+            "additional tracked components. Include a frontend at index.html and a backend "
+            "JavaScript file named backend-api.js."
         )
         node_input = json.dumps({
             "appSpec": app_spec,

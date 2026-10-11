@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { open, link, lstat, mkdir, realpath, unlink, rmdir } from 'node:fs/promises';
+import { open, link, lstat, mkdir, realpath, rename, unlink, rmdir } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { runPipeline, validateGeneratedFiles } from './index.js';
@@ -69,7 +69,7 @@ export function routeGeneratedFiles(files) {
   return routed;
 }
 
-async function inspectDestination(root, target) {
+async function inspectDestination(root, target, overwriteTargets) {
   const segments = target.split('/');
   let current = root;
 
@@ -93,12 +93,18 @@ async function inspectDestination(root, target) {
   }
 
   try {
-    await lstat(destination);
-    throw new Error(`Refusing to overwrite existing file: ${target}`);
+    const info = await lstat(destination);
+    if (!overwriteTargets.has(target)) {
+      throw new Error(`Refusing to overwrite existing file: ${target}`);
+    }
+    if (info.isSymbolicLink() || !info.isFile()) {
+      throw new Error(`Refusing to overwrite non-regular file: ${target}`);
+    }
+    return { destination, existing: info };
   } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
+    if (error.code === 'ENOENT') return { destination, existing: null };
+    throw error;
   }
-  return destination;
 }
 
 async function ensureDirectories(directory, root, createdDirectories) {
@@ -133,7 +139,18 @@ async function removeCreatedDirectories(paths) {
   }
 }
 
-export async function writeGeneratedFiles(files, { repoRoot = repositoryRoot, backendOnly = false } = {}) {
+export async function writeGeneratedFiles(
+  files,
+  { repoRoot = repositoryRoot, backendOnly = false, overwriteTargets = [] } = {},
+) {
+  if (!Array.isArray(overwriteTargets) || overwriteTargets.some((target) => typeof target !== 'string')) {
+    throw new TypeError('overwriteTargets must be an array of target paths');
+  }
+  const overwriteTargetSet = new Set(overwriteTargets);
+  if (overwriteTargetSet.size !== overwriteTargets.length) {
+    throw new Error('overwriteTargets must not contain duplicate paths');
+  }
+
   const validationErrors = validateGeneratedFiles(files);
   if (validationErrors.length) {
     throw new Error(`Generated files failed validation:\n${validationErrors.join('\n')}`);
@@ -150,16 +167,20 @@ export async function writeGeneratedFiles(files, { repoRoot = repositoryRoot, ba
   const root = await realpath(resolve(repoRoot));
   const destinations = new Map();
   for (const file of routedFiles) {
-    destinations.set(file.target, await inspectDestination(root, file.target));
+    destinations.set(
+      file.target,
+      await inspectDestination(root, file.target, overwriteTargetSet),
+    );
   }
 
   const createdDirectories = [];
   const stagedFiles = [];
+  const backups = [];
   const committedFiles = [];
 
   try {
     for (const file of routedFiles) {
-      const destination = destinations.get(file.target);
+      const { destination } = destinations.get(file.target);
       await ensureDirectories(dirname(destination), root, createdDirectories);
 
       const temporaryPath = resolve(dirname(destination), `.${randomUUID()}.prompt2app-tmp`);
@@ -176,31 +197,88 @@ export async function writeGeneratedFiles(files, { repoRoot = repositoryRoot, ba
 
     for (let index = 0; index < routedFiles.length; index += 1) {
       const file = routedFiles[index];
-      const destination = destinations.get(file.target);
-      await link(stagedFiles[index], destination);
-      committedFiles.push(destination);
+      const { destination, existing } = destinations.get(file.target);
+      if (existing) {
+        const current = await lstat(destination);
+        if (
+          current.isSymbolicLink()
+          || !current.isFile()
+          || current.dev !== existing.dev
+          || current.ino !== existing.ino
+        ) {
+          throw new Error(`Destination changed during generation: ${file.target}`);
+        }
+        const backupPath = resolve(dirname(destination), `.${randomUUID()}.prompt2app-backup`);
+        await link(destination, backupPath);
+        backups.push({ destination, backupPath });
+        await rename(stagedFiles[index], destination);
+        committedFiles.push({ destination, backupPath });
+      } else {
+        await link(stagedFiles[index], destination);
+        committedFiles.push({ destination, backupPath: null });
+      }
     }
-
-    for (const stagedPath of stagedFiles) await unlink(stagedPath);
-    return routedFiles.map(({ path, target, content }) => ({
-      path,
-      target,
-      bytes: Buffer.byteLength(content, 'utf8'),
-    }));
   } catch (error) {
-    await removeCreatedFiles(committedFiles);
-    await removeCreatedFiles(stagedFiles);
-    await removeCreatedDirectories(createdDirectories);
+    const rollbackErrors = [];
+    for (const { destination, backupPath } of committedFiles.reverse()) {
+      try {
+        if (backupPath) {
+          await rename(backupPath, destination);
+        } else {
+          await unlink(destination);
+        }
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError);
+      }
+    }
+    const committedBackups = new Set(committedFiles.map(({ backupPath }) => backupPath).filter(Boolean));
+    for (const { backupPath } of backups) {
+      if (committedBackups.has(backupPath)) continue;
+      try {
+        await unlink(backupPath);
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError);
+      }
+    }
+    try {
+      await removeCreatedFiles(stagedFiles);
+      await removeCreatedDirectories(createdDirectories);
+    } catch (rollbackError) {
+      rollbackErrors.push(rollbackError);
+    }
+    if (rollbackErrors.length) {
+      throw new AggregateError(
+        [error, ...rollbackErrors],
+        'Generated file write failed and rollback was incomplete',
+      );
+    }
     throw error;
   }
+
+  for (const { backupPath } of backups) await unlink(backupPath);
+  await removeCreatedFiles(stagedFiles);
+  return routedFiles.map(({ path, target, content }) => ({
+    path,
+    target,
+    bytes: Buffer.byteLength(content, 'utf8'),
+  }));
 }
 
 export async function runAndWrite(
   prompt,
-  { writeMode = 'all', repoRoot = repositoryRoot, ...pipelineOptions } = {},
+  {
+    writeMode = 'all',
+    repoRoot = repositoryRoot,
+    requiredTargets = [],
+    overwriteTargets = [],
+    ...pipelineOptions
+  } = {},
 ) {
   if (!['all', 'backend-only'].includes(writeMode)) {
     throw new Error('writeMode must be "all" or "backend-only"');
+  }
+  if (!Array.isArray(requiredTargets) || requiredTargets.some((target) => typeof target !== 'string')) {
+    throw new TypeError('requiredTargets must be an array of target paths');
   }
   const routedPrompt = [
     prompt,
@@ -212,6 +290,7 @@ export async function runAndWrite(
     'The AppSpec must conform to the supplied repository schema. Keep every Firestore allow statement false and include the catch-all deny rule.',
     'Return the deny-only Firestore rules as firestore.rules at the repository root.',
     'Do not generate or replace the pipeline utility at functions/index.js.',
+    ...requiredTargets.map((target) => `Include an output file that routes to ${target}.`),
   ].join('\n\n');
   const result = await runPipeline({ prompt: routedPrompt, ...pipelineOptions });
   if (!result.validation.valid) {
@@ -221,11 +300,17 @@ export async function runAndWrite(
   if (!result.files.some(({ path }) => path.split('/').at(-1).startsWith('backend-') && path.endsWith('.js'))) {
     throw new Error('Full-stack generation must include a backend-*.js script');
   }
+  const generatedTargets = new Set(routeGeneratedFiles(result.files).map(({ target }) => target));
+  const missingTargets = requiredTargets.filter((target) => !generatedTargets.has(target));
+  if (missingTargets.length) {
+    throw new Error(`Generated files are missing required targets: ${missingTargets.join(', ')}`);
+  }
   return {
     result,
     written: await writeGeneratedFiles(result.files, {
       repoRoot,
       backendOnly: writeMode === 'backend-only',
+      overwriteTargets,
     }),
   };
 }

@@ -103,3 +103,29 @@ test('rejects an invalid supplied AppSpec before requesting generated files', as
   );
   assert.equal(calls, 0);
 });
+
+test('applies integration-locked deny-all rules before generated-file validation', async () => {
+  const invalidRules = 'match /{document=**} { allow read, write: if true; }';
+  const calls = [];
+  const result = await runPipeline({
+    prompt: 'Generate a prototype',
+    appSpec: validSpec,
+    firestoreRules: safeRules,
+    apiKey: 'test-key',
+    fetchImpl: async (_url, options) => {
+      calls.push(JSON.parse(options.body));
+      return jsonResponse({
+        files: [
+          ...safeFiles.filter(({ path }) => path !== 'firestore.rules'),
+          { path: 'firestore.rules', content: invalidRules },
+        ],
+      });
+    },
+  });
+
+  assert.equal(result.validation.valid, true);
+  assert.equal(result.repairAttempts, 0);
+  assert.equal(calls.length, 1);
+  assert.equal(result.files.find(({ path }) => path === 'firestore.rules').content, safeRules);
+  assert.deepEqual(validateGeneratedFiles(result.files), []);
+});
