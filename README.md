@@ -43,7 +43,8 @@ Use `python training/scripts/dataset_pipeline.py route --source <images> --categ
 or `--category synthetic` to copy images into their respective `data/` tier. Pass `--labels
 <labels-directory>` to validate and copy matching YOLO detection labels. Run the `scan` command
 to validate staged labels, or `write-yaml` to regenerate `data/dataset.yaml` with absolute paths.
-Replace the placeholder class name in that map before training.
+The map registers the locked `button`, `input`, `header`, `text-block`, and `image-container`
+classes.
 
 For labeled UI screenshots, run
 `python training/scripts/ingest_ui_data.py --source <images> --labels <labels-directory>`.
@@ -59,3 +60,9 @@ The default class aliases map selected COCO object classes to the five UI tracki
 so treat these as review-needed seeds: `yolov8n.pt` is a general-object model, not a UI detector.
 Use `--class-map <json-file>` to add or override source class names, mapping each to one of
 `button`, `input`, `header`, `text-block`, or `image-container`.
+
+Run `python training/scripts/train_yolo.py --dry-run` to validate the weights, absolute dataset
+paths, class map, permissions, and baseline training settings without starting training. Run
+`python training/scripts/train_yolo.py` to train for 3 epochs on CPU with batch size 4 and
+640-pixel images. Both train and validation splits must contain labeled image/label pairs;
+checkpoints and other training artifacts go to the ignored `training/runs/` directory.
