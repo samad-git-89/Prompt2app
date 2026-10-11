@@ -70,3 +70,11 @@ small deterministic smoke-test dataset, run `python training/scripts/seed_mock_d
 four synthetic and two gold image/label pairs and refuses to overwrite existing fixtures. The
 launcher verifies `best.pt` and `last.pt`, then runs a post-training validation pass. Pass
 `--force` to the seeder to replace its named mock fixtures when refreshing the smoke-test data.
+
+Run `python training/scripts/evaluate_and_infer.py --image-dir <images-directory>` to load the
+latest custom checkpoint at `training/runs/train/weights/best.pt` and infer UI components for
+supported images in that directory and its subdirectories. The structured JSON profile is written
+to `data/eval/inference_results.json` with mode `644`; detections include the locked class ID/name,
+confidence, and pixel `xyxy` bounding-box coordinates. Use `--weights` or `--output` to override
+the paths, `--confidence` to change the detection threshold, or `--dry-run` to run inference
+without writing a profile.
