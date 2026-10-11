@@ -11,6 +11,7 @@ from pathlib import Path
 DATA_ROOT = Path(__file__).resolve().parents[2] / "data"
 IMAGE_EXTENSIONS = {".bmp", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp"}
 CATEGORIES = ("gold", "synthetic")
+LOCKED_CLASSES = ("button", "input", "header", "text-block", "image-container")
 
 
 def validate_yolo_labels(label_text: str) -> list[str]:
@@ -136,7 +137,7 @@ def dataset_yaml(data_root: Path) -> str:
         f"path: {json.dumps(str(data_root))}\n"
         f"train: {json.dumps(str(data_root / 'synthetic' / 'images'))}\n"
         f"val: {json.dumps(str(data_root / 'gold' / 'images'))}\n"
-        "names: [replace-with-class-name]\n"
+        f"names: {json.dumps(list(LOCKED_CLASSES))}\n"
     )
 
 

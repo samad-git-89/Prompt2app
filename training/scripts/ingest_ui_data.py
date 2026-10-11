@@ -33,6 +33,8 @@ def normalize_yolo_labels(label_text: str) -> str:
             raise ValueError(
                 f"line {line_number}: class id must be a non-negative integer"
             )
+        if class_id >= len(dataset_pipeline.LOCKED_CLASSES):
+            continue
 
         try:
             coordinates = [float(value) for value in fields[1:]]
