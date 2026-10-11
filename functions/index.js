@@ -108,6 +108,7 @@ function formatValidationErrors(errors) {
 
 export async function runPipeline({
   prompt,
+  appSpec,
   apiKey = process.env.GEMINI_API_KEY,
   model = defaultModel,
   maxRepairs = 3,
@@ -121,20 +122,23 @@ export async function runPipeline({
     throw new RangeError('maxRepairs must be an integer from 0 to 3');
   }
 
-  const specResult = await requestJson({
-    apiKey,
-    model,
-    fetchImpl,
-    prompt: [
-      'Convert the user request into one AppSpec JSON object matching this schema exactly.',
-      'Return JSON only. Do not invent integrations that the request does not need.',
-      `AppSpec JSON schema:\n${JSON.stringify(appSpecSchema)}`,
-      `User request:\n${prompt.trim()}`,
-    ].join('\n\n'),
-  });
+  const specResult = appSpec === undefined
+    ? await requestJson({
+      apiKey,
+      model,
+      fetchImpl,
+      prompt: [
+        'Convert the user request into one AppSpec JSON object matching this schema exactly.',
+        'Return JSON only. Do not invent integrations that the request does not need.',
+        `AppSpec JSON schema:\n${JSON.stringify(appSpecSchema)}`,
+        `User request:\n${prompt.trim()}`,
+      ].join('\n\n'),
+    })
+    : appSpec;
   const specErrors = validateAppSpec(specResult);
   if (specErrors.length) {
-    throw new Error(`Gemini generated an invalid AppSpec:\n${formatValidationErrors(specErrors)}`);
+    const source = appSpec === undefined ? 'Gemini generated' : 'Provided';
+    throw new Error(`${source} AppSpec is invalid:\n${formatValidationErrors(specErrors)}`);
   }
 
   let files;

@@ -195,7 +195,10 @@ export async function writeGeneratedFiles(files, { repoRoot = repositoryRoot, ba
   }
 }
 
-export async function runAndWrite(prompt, { writeMode = 'all', ...pipelineOptions } = {}) {
+export async function runAndWrite(
+  prompt,
+  { writeMode = 'all', repoRoot = repositoryRoot, ...pipelineOptions } = {},
+) {
   if (!['all', 'backend-only'].includes(writeMode)) {
     throw new Error('writeMode must be "all" or "backend-only"');
   }
@@ -220,7 +223,10 @@ export async function runAndWrite(prompt, { writeMode = 'all', ...pipelineOption
   }
   return {
     result,
-    written: await writeGeneratedFiles(result.files, { backendOnly: writeMode === 'backend-only' }),
+    written: await writeGeneratedFiles(result.files, {
+      repoRoot,
+      backendOnly: writeMode === 'backend-only',
+    }),
   };
 }
 

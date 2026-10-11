@@ -78,3 +78,17 @@ to `data/eval/inference_results.json` with mode `644`; detections include the lo
 confidence, and pixel `xyxy` bounding-box coordinates. Use `--weights` or `--output` to override
 the paths, `--confidence` to change the detection threshold, or `--dry-run` to run inference
 without writing a profile.
+
+Run the end-to-end coordinator with a raw image:
+
+```sh
+python run_integration.py --image data/gold/images/mock_gold_00.png
+```
+
+The coordinator runs the custom detector, transforms its profile into the locked-component
+AppSpec, passes that AppSpec directly to the Phase 1 generator, validates full-stack output, and
+writes it through `functions/file-writer.js`. The generator requires `GEMINI_API_KEY`; output is
+routed into the repository and existing files are never overwritten. Add `--dry-run` to exercise
+inference, transformation, mocked generation, and the real file writer in a temporary directory
+without requiring Gemini or changing repository files. `--weights` and `--output-root` override
+the checkpoint and destination for a normal run.

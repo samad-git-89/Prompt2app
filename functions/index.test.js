@@ -68,3 +68,38 @@ test('repairs invalid generated files and returns a validated result', async () 
   assert.equal(calls[0].headers['x-goog-api-key'], 'test-key');
   assert.match(calls[2].body.contents[0].parts[0].text, /Validation errors to fix/);
 });
+
+test('uses a supplied AppSpec directly without making a separate spec request', async () => {
+  const calls = [];
+  const result = await runPipeline({
+    prompt: 'Generate a prototype from the supplied layout',
+    appSpec: validSpec,
+    apiKey: 'test-key',
+    fetchImpl: async (_url, options) => {
+      calls.push(JSON.parse(options.body));
+      return jsonResponse({ files: safeFiles });
+    },
+  });
+
+  assert.deepEqual(result.spec, validSpec);
+  assert.equal(result.validation.valid, true);
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0].contents[0].parts[0].text.includes(JSON.stringify(validSpec)));
+});
+
+test('rejects an invalid supplied AppSpec before requesting generated files', async () => {
+  let calls = 0;
+  await assert.rejects(
+    runPipeline({
+      prompt: 'Generate a prototype',
+      appSpec: { name: 'incomplete' },
+      apiKey: 'test-key',
+      fetchImpl: async () => {
+        calls += 1;
+        return jsonResponse({ files: safeFiles });
+      },
+    }),
+    /Provided AppSpec is invalid/,
+  );
+  assert.equal(calls, 0);
+});
