@@ -270,6 +270,7 @@ export async function runAndWrite(
     writeMode = 'all',
     repoRoot = repositoryRoot,
     requiredTargets = [],
+    writeTargets = [],
     overwriteTargets = [],
     ...pipelineOptions
   } = {},
@@ -279,6 +280,9 @@ export async function runAndWrite(
   }
   if (!Array.isArray(requiredTargets) || requiredTargets.some((target) => typeof target !== 'string')) {
     throw new TypeError('requiredTargets must be an array of target paths');
+  }
+  if (!Array.isArray(writeTargets) || writeTargets.some((target) => typeof target !== 'string')) {
+    throw new TypeError('writeTargets must be an array of target paths');
   }
   const routedPrompt = [
     prompt,
@@ -300,14 +304,25 @@ export async function runAndWrite(
   if (!result.files.some(({ path }) => path.split('/').at(-1).startsWith('backend-') && path.endsWith('.js'))) {
     throw new Error('Full-stack generation must include a backend-*.js script');
   }
-  const generatedTargets = new Set(routeGeneratedFiles(result.files).map(({ target }) => target));
+  const routedGeneratedFiles = routeGeneratedFiles(result.files);
+  const generatedTargets = new Set(routedGeneratedFiles.map(({ target }) => target));
   const missingTargets = requiredTargets.filter((target) => !generatedTargets.has(target));
   if (missingTargets.length) {
     throw new Error(`Generated files are missing required targets: ${missingTargets.join(', ')}`);
   }
+  const missingWriteTargets = writeTargets.filter((target) => !generatedTargets.has(target));
+  if (missingWriteTargets.length) {
+    throw new Error(`Generated files are missing write targets: ${missingWriteTargets.join(', ')}`);
+  }
+  const filesToWrite = writeTargets.length
+    ? writeTargets.map((target) => {
+      const { path, content } = routedGeneratedFiles.find((file) => file.target === target);
+      return { path, content };
+    })
+    : result.files;
   return {
     result,
-    written: await writeGeneratedFiles(result.files, {
+    written: await writeGeneratedFiles(filesToWrite, {
       repoRoot,
       backendOnly: writeMode === 'backend-only',
       overwriteTargets,

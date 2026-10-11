@@ -1,7 +1,4 @@
 {
-  "firestore": {
-    "rules": "firestore.rules"
-  },
   "hosting": {
     "public": "web",
     "ignore": [
@@ -22,5 +19,8 @@
   },
   "functions": {
     "source": "functions"
+  },
+  "firestore": {
+    "rules": "firestore.rules"
   }
 }

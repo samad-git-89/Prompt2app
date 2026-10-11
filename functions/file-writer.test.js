@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { routeGeneratedFiles, writeGeneratedFiles } from './file-writer.js';
+import { routeGeneratedFiles, runAndWrite, writeGeneratedFiles } from './file-writer.js';
 
 const rules = `rules_version = '2';
 service cloud.firestore {
@@ -67,6 +67,7 @@ test('overwrites only explicitly approved regular-file targets', async () => {
     await mkdir(join(root, 'web'));
     await mkdir(join(root, 'functions', 'generated'), { recursive: true });
     await writeFile(join(root, 'web', 'index.html'), 'old frontend\n');
+    await writeFile(join(root, 'web', 'firebase.json'), 'old config\n');
     await writeFile(join(root, 'firestore.rules'), 'old rules\n');
     await writeFile(join(root, 'functions', 'generated', 'backend-api.js'), 'old backend\n');
 
@@ -74,6 +75,7 @@ test('overwrites only explicitly approved regular-file targets', async () => {
       { path: 'index.html', content: '<main>Updated</main>\n' },
       { path: 'backend-api.js', content: 'export function handleRequest() { return "updated"; }\n' },
       { path: 'firestore.rules', content: rules },
+      { path: 'firebase.json', content: '{"hosting":{"public":"web"}}\n' },
     ];
     const written = await writeGeneratedFiles(files, {
       repoRoot: root,
@@ -81,15 +83,18 @@ test('overwrites only explicitly approved regular-file targets', async () => {
         'web/index.html',
         'functions/generated/backend-api.js',
         'firestore.rules',
+        'web/firebase.json',
       ],
     });
 
-    assert.equal(written.length, 3);
+    assert.equal(written.length, 4);
     assert.equal(await readFile(join(root, 'web', 'index.html'), 'utf8'), files[0].content);
     assert.equal(await readFile(join(root, 'functions', 'generated', 'backend-api.js'), 'utf8'), files[1].content);
     assert.equal(await readFile(join(root, 'firestore.rules'), 'utf8'), rules);
+    assert.equal(await readFile(join(root, 'web', 'firebase.json'), 'utf8'), files[3].content);
     for (const path of [
       join(root, 'web', 'index.html'),
+      join(root, 'web', 'firebase.json'),
       join(root, 'functions', 'generated', 'backend-api.js'),
       join(root, 'firestore.rules'),
     ]) {
@@ -122,6 +127,57 @@ test('deny-all Firestore validation runs before overwriting any existing files',
     );
     assert.equal(await readFile(join(root, 'web', 'index.html'), 'utf8'), 'existing frontend\n');
     assert.equal(await readFile(join(root, 'firestore.rules'), 'utf8'), 'existing deny rules\n');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('integration target selection leaves unrelated generated destinations untouched', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'prompt2app-writer-'));
+  const protectedPackage = '{"name":"do-not-replace"}\n';
+  try {
+    await mkdir(join(root, 'functions', 'generated'), { recursive: true });
+    await writeFile(join(root, 'functions', 'generated', 'package.json'), protectedPackage);
+    const files = [
+      { path: 'index.html', content: '<main>Generated UI</main>\n' },
+      { path: 'backend-api.js', content: 'export function handleRequest() {}\n' },
+      { path: 'firestore.rules', content: rules },
+      { path: 'firebase.json', content: '{"hosting":{"public":"web"}}\n' },
+      { path: 'functions/package.json', content: '{"name":"generated"}\n' },
+    ];
+    const fetchImpl = async () => new Response(JSON.stringify({
+      candidates: [{
+        content: { parts: [{ text: JSON.stringify({ files }) }] },
+      }],
+    }));
+    const targets = [
+      'firestore.rules',
+      'web/index.html',
+      'functions/generated/backend-api.js',
+      'web/firebase.json',
+    ];
+
+    const { written } = await runAndWrite('Build the supplied UI', {
+      apiKey: 'test-key',
+      appSpec: {
+        name: 'Test UI',
+        description: 'Integration writer test',
+        auth: 'none',
+        pages: [{ route: '/', purpose: 'Render UI', components: ['button'] }],
+        data_models: [],
+      },
+      fetchImpl,
+      repoRoot: root,
+      requiredTargets: targets,
+      writeTargets: targets,
+      overwriteTargets: targets,
+    });
+
+    assert.deepEqual(written.map(({ target }) => target), targets);
+    assert.equal(
+      await readFile(join(root, 'functions', 'generated', 'package.json'), 'utf8'),
+      protectedPackage,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }

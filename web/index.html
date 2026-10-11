@@ -6,60 +6,63 @@
     <title>Mock Gold 00 UI</title>
     <style>
         body {
-            font-family: sans-serif;
             margin: 0;
             padding: 0;
-            overflow: hidden;
-        }
-        .container {
+            font-family: Arial, sans-serif;
             position: relative;
-            width: 100vw;
-            height: 100vh;
+            min-height: 100vh;
             background-color: #f0f0f0;
         }
-        .component {
+        .ui-component {
             position: absolute;
+            box-sizing: border-box;
             background-color: #007bff;
             color: white;
             border: none;
+            border-radius: 5px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 16px;
-            padding: 0;
-            border-radius: 4px;
+            font-weight: bold;
+            text-align: center;
+            padding: 5px;
+        }
+        .ui-component:hover {
+            opacity: 0.9;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <button class="component" style="left: 95.178px; top: 367.618px; width: 164.612px; height: 116.100px;">Button 1</button>
-        <button class="component" style="left: 86.538px; top: 304.927px; width: 173.557px; height: 177.774px;">Button 2</button>
+    <button class="ui-component" style="left: 95.17849731445312px; top: 367.6180114746094px; width: 164.61209106445312px; height: 116.10064797265625px;">Button 1</button>
+    <button class="ui-component" style="left: 86.53884887695312px; top: 304.92706298828125px; width: 173.55679321289062px; height: 177.774658203125px;">Button 2</button>
+
+    <div style="position: absolute; top: 20px; left: 20px;">
+        <h1>Frontend UI</h1>
+        <p>This is the frontend reconstructed from the mock.</p>
+        <button id="fetchBackendData">Fetch Backend Data</button>
+        <p>Backend Response: <span id="backendResponse">Loading...</span></p>
     </div>
+
     <script>
-        document.querySelectorAll('.component').forEach(button => {
-            button.addEventListener('click', () => {
-                alert(`You clicked ${button.textContent}!`);
-                // Example of a backend call
-                fetch('/api/action', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ button: button.textContent, timestamp: new Date().toISOString() })
-                })
-                .then(response => response.json())
-                .then(data => console.log('Backend response:', data))
-                .catch(error => console.error('Error calling backend:', error));
-            });
+        document.getElementById('fetchBackendData').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/hello');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                document.getElementById('backendResponse').textContent = data.message;
+            } catch (error) {
+                console.error('Error fetching backend data:', error);
+                document.getElementById('backendResponse').textContent = 'Error fetching data.';
+            }
         });
 
-        // Initial check to see if backend is alive
-        fetch('/api/hello')
-            .then(response => response.text())
-            .then(data => console.log('Backend says:', data))
-            .catch(error => console.error('Error fetching from backend:', error));
+        document.addEventListener('DOMContentLoaded', () => {
+             document.getElementById('fetchBackendData').click();
+        });
     </script>
 </body>
 </html>

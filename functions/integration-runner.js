@@ -14,6 +14,7 @@ const integrationTargets = [
   'firestore.rules',
   'web/index.html',
   'functions/generated/backend-api.js',
+  'web/firebase.json',
 ];
 
 const smokeTestFiles = [
@@ -68,6 +69,7 @@ async function main() {
     firestoreRules,
     repoRoot: outputRoot,
     requiredTargets: integrationTargets,
+    writeTargets: integrationTargets,
     overwriteTargets: integrationTargets,
   };
   if (dryRun) {
