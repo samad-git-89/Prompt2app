@@ -51,3 +51,11 @@ The image and matching `.txt` label paths must have the same relative names. The
 script validates YOLO rows, clamps finite box coordinates to `[0, 1]`, routes pairs into
 `data/synthetic/images/` and `data/synthetic/labels/` through the shared dataset pipeline,
 sets ingested files and the dataset map to mode `644`, and updates `data/dataset.yaml`.
+
+For assisted predictions, run `python training/scripts/auto_label_images.py` to scan
+`data/synthetic/images/` for images without a sibling `.txt` file. Predictions are written
+beside each image with mode `644`; `--dry-run` runs inference and logs results without writing.
+The default class aliases map selected COCO object classes to the five UI tracking components,
+so treat these as review-needed seeds: `yolov8n.pt` is a general-object model, not a UI detector.
+Use `--class-map <json-file>` to add or override source class names, mapping each to one of
+`button`, `input`, `header`, `text-block`, or `image-container`.
