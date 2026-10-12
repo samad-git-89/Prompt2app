@@ -9,13 +9,54 @@ const defaultModel = 'gemini-2.5-flash';
 const maxFileCount = 100;
 const maxFileSize = 1024 * 1024;
 const maxTotalSize = 5 * 1024 * 1024;
+const postgresTypes = {
+  string: 'text',
+  integer: 'integer',
+  number: 'double precision',
+  boolean: 'boolean',
+  date: 'date',
+  datetime: 'timestamptz',
+  uuid: 'uuid',
+  json: 'jsonb',
+};
 
 export function validateAppSpec(spec) {
   if (validateSpec(spec)) return [];
   return (validateSpec.errors ?? []).map((error) => `${error.instancePath || '/'} ${error.message}`);
 }
 
-export function validateGeneratedFiles(files) {
+export function generatePostgresSchema(dataModels) {
+  if (!Array.isArray(dataModels)) throw new TypeError('dataModels must be an array');
+
+  const tables = new Set();
+  const statements = dataModels.map(({ table, fields }) => {
+    if (!/^[a-z][a-z0-9_]*$/.test(table) || !Array.isArray(fields)) {
+      throw new TypeError('Each data model must have a valid PostgreSQL table name and fields');
+    }
+    if (tables.has(table)) throw new TypeError(`Duplicate PostgreSQL table name: ${table}`);
+    tables.add(table);
+    const fieldNames = new Set();
+    const columns = fields.map(({ name, type, required }) => {
+      const postgresType = postgresTypes[type];
+      if (!/^[a-z][a-z0-9_]*$/.test(name) || !postgresType || fieldNames.has(name)) {
+        throw new TypeError(`Invalid PostgreSQL field definition in table ${table}`);
+      }
+      fieldNames.add(name);
+      const primaryKey = name === 'id' ? ' PRIMARY KEY' : '';
+      const notNull = required || name === 'id' ? ' NOT NULL' : '';
+      return `  "${name}" ${postgresType}${notNull}${primaryKey}`;
+    });
+    if (!fields.some(({ name }) => name === 'id')) {
+      columns.unshift('  "id" uuid NOT NULL PRIMARY KEY DEFAULT gen_random_uuid()');
+    }
+    return `CREATE TABLE IF NOT EXISTS "${table}" (\n${columns.join(',\n')}\n);\n`
+      + `ALTER TABLE "${table}" ENABLE ROW LEVEL SECURITY;`;
+  });
+
+  return `${statements.join('\n\n')}\n`;
+}
+
+export function validateGeneratedFiles(files, { requireDatabaseSchema = false } = {}) {
   const errors = [];
 
   if (!Array.isArray(files) || files.length === 0 || files.length > maxFileCount) {
@@ -24,7 +65,7 @@ export function validateGeneratedFiles(files) {
 
   const seenPaths = new Set();
   let totalSize = 0;
-  let foundRules = false;
+  let foundDatabaseSchema = false;
 
   for (const [index, file] of files.entries()) {
     if (!file || typeof file.path !== 'string' || typeof file.content !== 'string') {
@@ -46,6 +87,9 @@ export function validateGeneratedFiles(files) {
 
     if (seenPaths.has(file.path)) errors.push(`duplicate file path: ${file.path}`);
     seenPaths.add(file.path);
+    if (/(?:^|\/)(?:firestore\.rules|firebase\.json)$/i.test(file.path)) {
+      errors.push(`${file.path} is a legacy Firebase configuration and is not supported`);
+    }
 
     const size = Buffer.byteLength(file.content, 'utf8');
     totalSize += size;
@@ -55,18 +99,14 @@ export function validateGeneratedFiles(files) {
       errors.push(`${file.path} appears to contain a credential`);
     }
 
-    if (/(?:^|\/)firestore\.rules$/i.test(file.path) || /\.rules$/i.test(file.path)) {
-      foundRules = true;
-      const hasDenyAll = /match\s*\/\{document=\*\*\}[\s\S]*?allow\s+read\s*,\s*write\s*:\s*if\s+false\s*;/i.test(file.content);
-      const allowStatements = file.content.match(/\ballow\s+[^;]+;/gi) ?? [];
-      if (!hasDenyAll) errors.push(`${file.path} must include a catch-all read/write deny rule`);
-      if (allowStatements.some((statement) => !/:\s*if\s+false\s*;$/i.test(statement))) {
-        errors.push(`${file.path} must keep every Firestore allow rule set to false during Phase 1`);
-      }
+    if (file.path === 'supabase/schema.sql' && /\bCREATE\s+TABLE\b/i.test(file.content)) {
+      foundDatabaseSchema = true;
     }
   }
 
-  if (!foundRules) errors.push('generated files must include Firestore security rules with a deny-all fallback');
+  if (requireDatabaseSchema && !foundDatabaseSchema) {
+    errors.push('generated files must include PostgreSQL table DDL at supabase/schema.sql');
+  }
   if (totalSize > maxTotalSize) errors.push('generated files exceed the 5 MiB total size limit');
   return errors;
 }
@@ -109,7 +149,6 @@ function formatValidationErrors(errors) {
 export async function runPipeline({
   prompt,
   appSpec,
-  firestoreRules,
   apiKey = process.env.GEMINI_API_KEY,
   model = defaultModel,
   maxRepairs = 3,
@@ -121,9 +160,6 @@ export async function runPipeline({
   if (!apiKey) throw new Error('GEMINI_API_KEY is required');
   if (!Number.isInteger(maxRepairs) || maxRepairs < 0 || maxRepairs > 3) {
     throw new RangeError('maxRepairs must be an integer from 0 to 3');
-  }
-  if (firestoreRules !== undefined && typeof firestoreRules !== 'string') {
-    throw new TypeError('firestoreRules must be a string when provided');
   }
 
   const specResult = appSpec === undefined
@@ -153,7 +189,9 @@ export async function runPipeline({
     const generationPrompt = [
       'Generate the complete starter code for this app, one file per entry.',
       'Return a JSON object with exactly this shape: {"files":[{"path":"relative/path","content":"file contents"}]}.',
-      'Include Firestore security rules in a file named firestore.rules, with a catch-all read/write deny rule.',
+      'For every AppSpec data model, include PostgreSQL DDL in supabase/schema.sql and use the Supabase JavaScript client for database access.',
+      'Do not generate Firebase or Firestore configuration, rules, or collection access.',
+      'Use only the locked UI component tokens in the AppSpec; preserve each token exactly.',
       'Do not include secrets, absolute paths, parent-directory segments, markdown fences, or explanations.',
       `Original user request:\n${prompt.trim()}`,
       `Validated AppSpec:\n${JSON.stringify(specResult)}`,
@@ -173,15 +211,21 @@ export async function runPipeline({
       prompt: generationPrompt.join('\n\n'),
     });
     files = generated?.files;
-    if (firestoreRules !== undefined && Array.isArray(files)) {
-      const rulesIndex = files.findIndex((file) => file?.path === 'firestore.rules');
-      if (rulesIndex === -1) {
-        files.push({ path: 'firestore.rules', content: firestoreRules });
+    if (Array.isArray(files) && specResult.data_models.length > 0) {
+      const schemaIndex = files.findIndex((file) => file?.path === 'supabase/schema.sql');
+      const schemaFile = {
+        path: 'supabase/schema.sql',
+        content: generatePostgresSchema(specResult.data_models),
+      };
+      if (schemaIndex === -1) {
+        files.push(schemaFile);
       } else {
-        files[rulesIndex] = { ...files[rulesIndex], content: firestoreRules };
+        files[schemaIndex] = schemaFile;
       }
     }
-    validationErrors = validateGeneratedFiles(files);
+    validationErrors = validateGeneratedFiles(files, {
+      requireDatabaseSchema: specResult.data_models.length > 0,
+    });
     if (validationErrors.length === 0) {
       return { spec: specResult, files, validation: { valid: true, errors: [] }, repairAttempts };
     }

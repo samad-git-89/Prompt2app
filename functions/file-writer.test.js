@@ -5,40 +5,38 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { routeGeneratedFiles, runAndWrite, writeGeneratedFiles } from './file-writer.js';
 
-const rules = `rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}`;
+const schema = 'CREATE TABLE IF NOT EXISTS "readings" ("id" uuid PRIMARY KEY);\n';
 
 const generatedFiles = [
   { path: 'index.html', content: '<main>Reading list</main>\n' },
   { path: 'style.css', content: 'body { color: #222; }\n' },
-  { path: 'firebase-config.js', content: 'export const firebaseConfig = {};\n' },
+  { path: 'vercel.json', content: '{}\n' },
   { path: 'script.js', content: 'export {};\n' },
-  { path: 'firestore.rules', content: rules },
+  { path: 'supabase/schema.sql', content: schema },
   { path: 'functions/readings.js', content: 'export function listReadings() {}\n' },
   { path: 'backend-index.js', content: 'export function handleRequest() {}\n' },
 ];
 
-test('routes browser files, backend logic, and root Firestore rules', () => {
+test('routes browser assets, Vercel handlers, and Supabase schema', () => {
   const routed = routeGeneratedFiles(generatedFiles);
   assert.deepEqual(routed.map((file) => file.target), [
-    'web/index.html',
-    'web/style.css',
-    'web/firebase-config.js',
-    'web/script.js',
-    'firestore.rules',
-    'functions/generated/readings.js',
-    'functions/generated/backend-index.js',
+    'public/index.html',
+    'public/style.css',
+    'vercel.json',
+    'public/script.js',
+    'supabase/schema.sql',
+    'api/readings.js',
+    'api/backend-index.js',
   ]);
   assert.equal(routeGeneratedFiles([
     { path: 'functions/index.js', content: 'export {};\n' },
-    { path: 'firestore.rules', content: rules },
-  ])[0].target, 'functions/generated/index.js');
+  ])[0].target, 'api/index.js');
+  assert.equal(routeGeneratedFiles([
+    { path: 'web/index.html', content: '<main></main>\n' },
+  ])[0].target, 'public/index.html');
+  assert.equal(routeGeneratedFiles([
+    { path: 'src/main.js', content: 'export {};\n' },
+  ])[0].target, 'src/main.js');
 });
 
 test('writes validated files with safe permissions and refuses overwrites', async () => {
@@ -49,12 +47,13 @@ test('writes validated files with safe permissions and refuses overwrites', asyn
 
     const written = await writeGeneratedFiles(generatedFiles, { repoRoot: root });
     assert.equal(written.length, generatedFiles.length);
-    assert.equal(await readFile(join(root, 'web', 'index.html'), 'utf8'), generatedFiles[0].content);
-    assert.equal(await readFile(join(root, 'firestore.rules'), 'utf8'), rules);
-    assert.equal(await readFile(join(root, 'functions', 'generated', 'readings.js'), 'utf8'), generatedFiles[5].content);
-    assert.equal(await readFile(join(root, 'functions', 'generated', 'backend-index.js'), 'utf8'), generatedFiles[6].content);
+    assert.equal(await readFile(join(root, 'public', 'index.html'), 'utf8'), generatedFiles[0].content);
+    assert.equal(await readFile(join(root, 'supabase', 'schema.sql'), 'utf8'), schema);
+    assert.equal(await readFile(join(root, 'api', 'readings.js'), 'utf8'), generatedFiles[5].content);
+    assert.equal(await readFile(join(root, 'api', 'backend-index.js'), 'utf8'), generatedFiles[6].content);
     assert.equal(await readFile(join(root, 'functions', 'index.js'), 'utf8'), 'pipeline remains intact\n');
-    assert.equal((await stat(join(root, 'web', 'script.js'))).mode & 0o777, 0o644);
+    assert.equal((await stat(join(root, 'public', 'script.js'))).mode & 0o777, 0o644);
+    assert.equal((await stat(join(root, 'api', 'readings.js'))).mode & 0o777, 0o644);
     await assert.rejects(writeGeneratedFiles(generatedFiles, { repoRoot: root }), /Refusing to overwrite/);
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -64,39 +63,40 @@ test('writes validated files with safe permissions and refuses overwrites', asyn
 test('overwrites only explicitly approved regular-file targets', async () => {
   const root = await mkdtemp(join(tmpdir(), 'prompt2app-writer-'));
   try {
-    await mkdir(join(root, 'web'));
-    await mkdir(join(root, 'functions', 'generated'), { recursive: true });
-    await writeFile(join(root, 'web', 'index.html'), 'old frontend\n');
-    await writeFile(join(root, 'web', 'firebase.json'), 'old config\n');
-    await writeFile(join(root, 'firestore.rules'), 'old rules\n');
-    await writeFile(join(root, 'functions', 'generated', 'backend-api.js'), 'old backend\n');
+    await mkdir(join(root, 'public'));
+    await mkdir(join(root, 'api'));
+    await mkdir(join(root, 'supabase'));
+    await writeFile(join(root, 'public', 'index.html'), 'old frontend\n');
+    await writeFile(join(root, 'vercel.json'), 'old config\n');
+    await writeFile(join(root, 'supabase', 'schema.sql'), 'old schema\n');
+    await writeFile(join(root, 'api', 'backend-api.js'), 'old backend\n');
 
     const files = [
       { path: 'index.html', content: '<main>Updated</main>\n' },
       { path: 'backend-api.js', content: 'export function handleRequest() { return "updated"; }\n' },
-      { path: 'firestore.rules', content: rules },
-      { path: 'firebase.json', content: '{"hosting":{"public":"web"}}\n' },
+      { path: 'supabase/schema.sql', content: schema },
+      { path: 'vercel.json', content: '{"outputDirectory":"public"}\n' },
     ];
     const written = await writeGeneratedFiles(files, {
       repoRoot: root,
       overwriteTargets: [
-        'web/index.html',
-        'functions/generated/backend-api.js',
-        'firestore.rules',
-        'web/firebase.json',
+        'public/index.html',
+        'api/backend-api.js',
+        'supabase/schema.sql',
+        'vercel.json',
       ],
     });
 
     assert.equal(written.length, 4);
-    assert.equal(await readFile(join(root, 'web', 'index.html'), 'utf8'), files[0].content);
-    assert.equal(await readFile(join(root, 'functions', 'generated', 'backend-api.js'), 'utf8'), files[1].content);
-    assert.equal(await readFile(join(root, 'firestore.rules'), 'utf8'), rules);
-    assert.equal(await readFile(join(root, 'web', 'firebase.json'), 'utf8'), files[3].content);
+    assert.equal(await readFile(join(root, 'public', 'index.html'), 'utf8'), files[0].content);
+    assert.equal(await readFile(join(root, 'api', 'backend-api.js'), 'utf8'), files[1].content);
+    assert.equal(await readFile(join(root, 'supabase', 'schema.sql'), 'utf8'), schema);
+    assert.equal(await readFile(join(root, 'vercel.json'), 'utf8'), files[3].content);
     for (const path of [
-      join(root, 'web', 'index.html'),
-      join(root, 'web', 'firebase.json'),
-      join(root, 'functions', 'generated', 'backend-api.js'),
-      join(root, 'firestore.rules'),
+      join(root, 'public', 'index.html'),
+      join(root, 'vercel.json'),
+      join(root, 'api', 'backend-api.js'),
+      join(root, 'supabase', 'schema.sql'),
     ]) {
       assert.equal((await stat(path)).mode & 0o777, 0o644);
     }
@@ -105,28 +105,23 @@ test('overwrites only explicitly approved regular-file targets', async () => {
   }
 });
 
-test('deny-all Firestore validation runs before overwriting any existing files', async () => {
+test('unsafe generated files are rejected before overwriting any existing files', async () => {
   const root = await mkdtemp(join(tmpdir(), 'prompt2app-writer-'));
   try {
-    await mkdir(join(root, 'web'));
-    await writeFile(join(root, 'web', 'index.html'), 'existing frontend\n');
-    await writeFile(join(root, 'firestore.rules'), 'existing deny rules\n');
+    await mkdir(join(root, 'public'));
+    await writeFile(join(root, 'public', 'index.html'), 'existing frontend\n');
 
     await assert.rejects(
       writeGeneratedFiles([
         { path: 'index.html', content: '<main>Should not write</main>\n' },
-        {
-          path: 'firestore.rules',
-          content: 'match /{document=**} { allow read, write: if true; }',
-        },
+        { path: '../escape.js', content: 'unsafe' },
       ], {
         repoRoot: root,
-        overwriteTargets: ['web/index.html', 'firestore.rules'],
+        overwriteTargets: ['public/index.html'],
       }),
-      /every Firestore allow rule/,
+      /safe relative path/,
     );
-    assert.equal(await readFile(join(root, 'web', 'index.html'), 'utf8'), 'existing frontend\n');
-    assert.equal(await readFile(join(root, 'firestore.rules'), 'utf8'), 'existing deny rules\n');
+    assert.equal(await readFile(join(root, 'public', 'index.html'), 'utf8'), 'existing frontend\n');
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -141,8 +136,8 @@ test('integration target selection leaves unrelated generated destinations untou
     const files = [
       { path: 'index.html', content: '<main>Generated UI</main>\n' },
       { path: 'backend-api.js', content: 'export function handleRequest() {}\n' },
-      { path: 'firestore.rules', content: rules },
-      { path: 'firebase.json', content: '{"hosting":{"public":"web"}}\n' },
+      { path: 'supabase/schema.sql', content: schema },
+      { path: 'vercel.json', content: '{"outputDirectory":"public"}\n' },
       { path: 'functions/package.json', content: '{"name":"generated"}\n' },
     ];
     const fetchImpl = async () => new Response(JSON.stringify({
@@ -151,10 +146,10 @@ test('integration target selection leaves unrelated generated destinations untou
       }],
     }));
     const targets = [
-      'firestore.rules',
-      'web/index.html',
-      'functions/generated/backend-api.js',
-      'web/firebase.json',
+      'supabase/schema.sql',
+      'public/index.html',
+      'api/backend-api.js',
+      'vercel.json',
     ];
 
     const { written } = await runAndWrite('Build the supplied UI', {
@@ -186,14 +181,14 @@ test('integration target selection leaves unrelated generated destinations untou
 test('backend-only mode adds backend scripts without touching existing frontend files', async () => {
   const root = await mkdtemp(join(tmpdir(), 'prompt2app-writer-'));
   try {
-    await mkdir(join(root, 'web'));
-    await writeFile(join(root, 'web', 'index.html'), 'existing frontend\n');
+    await mkdir(join(root, 'public'));
+    await writeFile(join(root, 'public', 'index.html'), 'existing frontend\n');
 
     const written = await writeGeneratedFiles(generatedFiles, { repoRoot: root, backendOnly: true });
-    assert.deepEqual(written.map((file) => file.target), ['functions/generated/backend-index.js']);
-    assert.equal(await readFile(join(root, 'web', 'index.html'), 'utf8'), 'existing frontend\n');
-    assert.equal(await readFile(join(root, 'functions', 'generated', 'backend-index.js'), 'utf8'), generatedFiles[6].content);
-    assert.equal((await stat(join(root, 'functions', 'generated', 'backend-index.js'))).mode & 0o777, 0o644);
+    assert.deepEqual(written.map((file) => file.target), ['api/backend-index.js']);
+    assert.equal(await readFile(join(root, 'public', 'index.html'), 'utf8'), 'existing frontend\n');
+    assert.equal(await readFile(join(root, 'api', 'backend-index.js'), 'utf8'), generatedFiles[6].content);
+    assert.equal((await stat(join(root, 'api', 'backend-index.js'))).mode & 0o777, 0o644);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -205,13 +200,8 @@ test('rejects unsafe or incomplete target layouts before writing', async () => {
     await assert.rejects(
       writeGeneratedFiles([
         { path: '../outside.js', content: 'bad' },
-        { path: 'firestore.rules', content: rules },
       ], { repoRoot: root }),
       /safe relative path/,
-    );
-    await assert.rejects(
-      writeGeneratedFiles([{ path: 'index.html', content: 'missing rules' }], { repoRoot: root }),
-      /Firestore security rules/,
     );
   } finally {
     await rm(root, { recursive: true, force: true });

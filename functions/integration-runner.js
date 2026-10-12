@@ -1,20 +1,11 @@
 import { isDeepStrictEqual } from 'node:util';
 import { runAndWrite } from './file-writer.js';
 
-const firestoreRules = `rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}`;
-
 const integrationTargets = [
-  'firestore.rules',
-  'web/index.html',
-  'functions/generated/backend-api.js',
-  'web/firebase.json',
+  'public/index.html',
+  'api/backend-api.js',
+  'api/ui-service.js',
+  'vercel.json',
 ];
 
 const smokeTestFiles = [
@@ -23,7 +14,7 @@ const smokeTestFiles = [
   { path: 'style.css', content: 'body { font-family: sans-serif; }\n' },
   { path: 'backend-api.js', content: 'export function handleRequest() { return { status: 200 }; }\n' },
   { path: 'functions/ui-service.js', content: 'export function listComponents() { return []; }\n' },
-  { path: 'firestore.rules', content: firestoreRules },
+  { path: 'vercel.json', content: '{"outputDirectory":"public"}\n' },
 ];
 
 function dryRunFetcher(appSpec, visualProfile) {
@@ -66,7 +57,6 @@ async function main() {
 
   const options = {
     appSpec,
-    firestoreRules,
     repoRoot: outputRoot,
     requiredTargets: integrationTargets,
     writeTargets: integrationTargets,
@@ -77,7 +67,7 @@ async function main() {
     options.fetchImpl = dryRunFetcher(appSpec, visualProfile);
   }
 
-  console.error('Applying the integration locked deny-all Firestore rules before final validation.');
+  console.error('Preserving locked UI component tokens and validating Vercel/Supabase output.');
   const { result, written } = await runAndWrite(prompt, options);
   if (!isDeepStrictEqual(result.spec, appSpec)) {
     throw new Error('Phase 1 pipeline changed the supplied visual AppSpec');

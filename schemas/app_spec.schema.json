@@ -15,7 +15,13 @@
         "properties": {
           "route": { "type": "string" },
           "purpose": { "type": "string" },
-          "components": { "type": "array", "items": { "type": "string" } }
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["button", "input", "header", "text-block", "image-container"]
+            }
+          }
         }
       }
     },
@@ -23,17 +29,22 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["collection", "fields"],
+        "required": ["table", "fields"],
+        "additionalProperties": false,
         "properties": {
-          "collection": { "type": "string" },
+          "table": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
           "fields": {
             "type": "array",
             "items": {
               "type": "object",
               "required": ["name", "type"],
+              "additionalProperties": false,
               "properties": {
-                "name": { "type": "string" },
-                "type": { "type": "string" },
+                "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+                "type": {
+                  "type": "string",
+                  "enum": ["string", "integer", "number", "boolean", "date", "datetime", "uuid", "json"]
+                },
                 "required": { "type": "boolean" }
               }
             }

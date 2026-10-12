@@ -1,11 +1,15 @@
 # Architecture (draft)
 
-User (web UI, Firebase Hosting)
-  -> Cloud Functions orchestrator (holds all keys)
+User (web UI, Vercel)
+  -> Vercel API handlers / orchestrator (holds all keys)
      -> Gemini API (planner + generator)
      -> Optional Hugging Face endpoint (cheap tier / fine-tuned specialist)
-     -> Validator (lint, build, Firestore rules check, secrets scan)
-     -> Firestore (projects, versions, specs, logs)
+     -> Validator (lint, build, PostgreSQL schema check, secrets scan)
+     -> Supabase (PostgreSQL, Auth, REST)
      -> Apps Script API (Workspace automation deploy)
 
-Long jobs run asynchronously (queue) and the UI listens to Firestore for progress.
+Generated browser assets are written under `public/` or `src/`, server handlers under `api/`,
+and PostgreSQL table definitions under `supabase/schema.sql`. Generated tables enable row-level
+security by default.
+
+Long jobs run asynchronously (queue) and the UI listens to Supabase for progress.

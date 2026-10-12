@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "prompt2app-dev"
-  }
+    "default": "prompt2app-host"
+  },
+  "targets": {},
+  "etags": {}
 }

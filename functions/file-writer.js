@@ -35,28 +35,27 @@ export function routeGeneratedFiles(files) {
     const segments = validateLogicalPath(file.path);
     let targetSegments;
 
-    if (file.path === 'firestore.rules') {
-      targetSegments = ['firestore.rules'];
+    if (segments[0] === 'public' || segments[0] === 'src' || segments[0] === 'api' || segments[0] === 'supabase') {
+      targetSegments = segments;
+    } else if (file.path === 'vercel.json') {
+      targetSegments = segments;
     } else if (segments[0] === 'functions') {
       const backendSegments = segments.slice(1);
       if (backendSegments[0] === 'generated') backendSegments.shift();
       if (backendSegments.length === 0) throw new Error('Backend files must include a filename');
-      targetSegments = ['functions', 'generated', ...backendSegments];
+      targetSegments = ['api', ...backendSegments];
     } else if (segments[0] === 'backend' || segments[0].startsWith('backend-')) {
       const backendSegments = segments[0] === 'backend' ? segments.slice(1) : segments;
       if (backendSegments.length === 0) throw new Error('Backend files must include a filename');
-      targetSegments = ['functions', 'generated', ...backendSegments];
+      targetSegments = ['api', ...backendSegments];
     } else if (segments[0] === 'web') {
       if (segments.length === 1) throw new Error('Web files must include a filename');
-      targetSegments = segments;
+      targetSegments = ['public', ...segments.slice(1)];
     } else {
-      targetSegments = ['web', ...segments];
+      targetSegments = ['public', ...segments];
     }
 
     const target = targetSegments.join('/');
-    if (target !== 'firestore.rules' && /\.rules$/i.test(target)) {
-      throw new Error('Firestore rules must be supplied at the repository root as firestore.rules');
-    }
     return { path: file.path, target, content: file.content };
   });
 
@@ -65,7 +64,6 @@ export function routeGeneratedFiles(files) {
     if (targets.has(file.target)) throw new Error(`Multiple generated files map to ${file.target}`);
     targets.add(file.target);
   }
-  if (!targets.has('firestore.rules')) throw new Error('A root firestore.rules file is required');
   return routed;
 }
 
@@ -159,7 +157,7 @@ export async function writeGeneratedFiles(
   const allRoutedFiles = routeGeneratedFiles(files);
   const routedFiles = backendOnly
     ? allRoutedFiles.filter(({ path, target }) =>
-      target.startsWith('functions/generated/') && path.split('/').at(-1).startsWith('backend-'))
+      target.startsWith('api/') && path.split('/').at(-1).startsWith('backend-'))
     : allRoutedFiles;
   if (backendOnly && routedFiles.length === 0) {
     throw new Error('No backend-prefixed files are available to write');
@@ -288,11 +286,10 @@ export async function runAndWrite(
     prompt,
     'This is an explicitly full-stack application. It MUST include server-side business logic, not only browser-side code.',
     'Generate at least 5 total files and at least one backend JavaScript script whose filename begins with backend- (for example, backend-index.js).',
-    'Emit backend-*.js as a top-level generated path so it can be routed into functions/generated/.',
-    'Output routing: browser interface files use ordinary relative paths and are written under web/.',
-    'Cloud business logic files must use a backend-*.js filename or a backend/ or functions/ path and will be written under functions/generated/.',
-    'The AppSpec must conform to the supplied repository schema. Keep every Firestore allow statement false and include the catch-all deny rule.',
-    'Return the deny-only Firestore rules as firestore.rules at the repository root.',
+    'Emit browser assets under public/ or application modules under src/.',
+    'Emit Vercel serverless handlers under api/ or as backend-*.js files.',
+    'For every AppSpec data model, provide Supabase-compatible PostgreSQL DDL in supabase/schema.sql.',
+    'Use the supplied AppSpec schema and preserve the five locked UI component tokens exactly.',
     'Do not generate or replace the pipeline utility at functions/index.js.',
     ...requiredTargets.map((target) => `Include an output file that routes to ${target}.`),
   ].join('\n\n');

@@ -2,20 +2,22 @@
 
 An AI assistant that helps non-coders build and scale web apps from plain-language prompts.
 
-**Target output stack:** web apps on Firebase (Hosting, Auth, Firestore, Cloud Functions) with Google Apps Script for Workspace automation.
+**Target output stack:** web apps on Vercel with Supabase (PostgreSQL, Auth, REST) and Google Apps Script for Workspace automation.
 
 **Models:** Gemini (via Google AI Studio / Gemini API) for planning and generation, with optional open models from Hugging Face as a cheaper tier or fine-tuned specialist.
 
 ## Pipeline
 
-prompt -> spec (JSON) -> code generation (file by file) -> validate (lint, build, Firestore rules, secrets scan) -> repair loop (max 3) -> deploy -> iterate with diffs
+prompt -> spec (JSON) -> code generation (file by file) -> validate (lint, build, PostgreSQL schema, secrets scan) -> repair loop (max 3) -> deploy -> iterate with diffs
 
 ## Repository layout
 
 | Path | Purpose |
 |---|---|
-| `web/` | Front-end for the builder UI (Firebase Hosting) |
-| `functions/` | Orchestrator: model calls, validation, queueing, key handling |
+| `public/` | Front-end assets served by Vercel |
+| `api/` | Vercel serverless handlers |
+| `supabase/` | Supabase PostgreSQL schema and migrations |
+| `functions/` | Generation orchestrator: model calls, validation, queueing, key handling |
 | `apps-script/` | Apps Script templates and deployment helpers |
 | `schemas/` | JSON schemas (app spec, eval case) |
 | `data/gold/` | Hand-written gold examples (prompt -> spec -> code) |
@@ -29,7 +31,8 @@ prompt -> spec (JSON) -> code generation (file by file) -> validate (lint, build
 
 - Split data by whole app, never by random rows, to avoid leakage.
 - API keys live only in environment variables or Secret Manager. Never commit them.
-- Generated Firestore rules must default to deny.
+- Generated PostgreSQL tables enable row-level security by default.
+- Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in a private local `.env` file; never commit credentials.
 
 See `docs/roadmap.md` for phases.
 
@@ -86,10 +89,10 @@ python run_integration.py --image data/gold/images/mock_gold_00.png
 ```
 
 The coordinator runs the custom detector, transforms its profile into the locked-component
-AppSpec, passes that AppSpec directly to the Phase 1 generator, validates full-stack output, and
+AppSpec, passes that AppSpec directly to the generator, validates full-stack output, and
 writes it through `functions/file-writer.js`. The generator requires `GEMINI_API_KEY`; a live
-integration run may atomically replace only `firestore.rules`, `web/index.html`, and
-`functions/generated/backend-api.js`, after validating all generated files and the deny-all rules.
+integration run may atomically replace only the configured Vercel frontend and API targets after
+validating all generated files.
 Other existing destinations are still protected from overwrite. Add `--dry-run` to exercise
 inference, transformation, mocked generation, and the real file writer in a temporary directory
 without requiring Gemini or changing repository files. `--weights` and `--output-root` override

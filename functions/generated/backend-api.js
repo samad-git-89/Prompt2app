@@ -1,19 +1,35 @@
-const functions = require('firebase-functions');
 const express = require('express');
-const cors = require('cors');
-
 const app = express();
 
-app.use(cors({
-    origin: "https://effective-space-orbit-jj4q4pwgw9wrf4gq-5000.app.github.dev",
-    credentials: true,
-    methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"]
-}));
+app.use(express.json());
 
-app.get('/api/hello', (req, res) => {
-    functions.logger.info('Hello API called!');
-    res.status(200).json({ message: 'Hello from the backend API!' });
+app.get('/api/data', (req, res) => {
+    console.log('GET /api/data received');
+    res.status(200).json({
+        message: 'Hello from the backend API!',
+        timestamp: new Date().toISOString(),
+        data: {
+            userCount: 123,
+            items: ['item1', 'item2', 'item3']
+        }
+    });
 });
 
-exports.app = functions.https.onRequest(app);
+app.post('/api/submit', (req, res) => {
+    console.log('POST /api/submit received', req.body);
+    const { payload } = req.body;
+    if (payload) {
+        res.status(200).json({
+            status: 'success',
+            receivedPayload: payload,
+            processedAt: new Date().toISOString()
+        });
+    } else {
+        res.status(400).json({
+            status: 'error',
+            message: 'Payload is required'
+        });
+    }
+});
+
+module.exports = app;

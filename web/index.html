@@ -3,78 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mock Gold 00 UI</title>
+    <title>Chat-Builder-Zoho UI</title>
+    <link rel="stylesheet" href="style.css">
     <style>
-        body {
+        body, html {
             margin: 0;
             padding: 0;
-            font-family: Arial, sans-serif;
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* Prevent scrollbars from layout issues */
+        }
+        .canvas {
             position: relative;
-            min-height: 100vh;
-            background-color: #f0f0f0;
+            width: 100vw; /* Assume full viewport width */
+            height: 100vh; /* Assume full viewport height */
+            /* For scaling, assuming a base resolution like 1920x1080 */
+            --base-width: 1920;
+            --base-height: 1080;
+            transform-origin: top left;
         }
-        .ui-component {
+        .component {
             position: absolute;
-            box-sizing: border-box;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            font-weight: bold;
-            text-align: center;
-            padding: 5px;
-        }
-        .ui-component:hover {
-            opacity: 0.9;
+            box-sizing: border-box; /* Include padding and border in the element's total width and height */
+            border: 1px dashed #ccc; /* For visualization */
         }
     </style>
 </head>
 <body>
-    <button class="ui-component" style="left: 95.17849731445312px; top: 367.6180114746094px; width: 164.61209106445312px; height: 116.10064797265625px;">Button 1</button>
-    <button class="ui-component" style="left: 86.53884887695312px; top: 304.92706298828125px; width: 173.55679321289062px; height: 177.774658203125px;">Button 2</button>
-
-    <div style="position: absolute; top: 20px; left: 20px;">
-        <h1>Frontend UI</h1>
-        <p>This is the frontend reconstructed from the mock.</p>
-        <button id="fetchBackendData">Fetch Backend Data</button>
-        <p>Backend Response: <span id="backendResponse">Loading...</span></p>
+    <div class="canvas">
+        <button class="component" style="left: 2.138949394226074px; top: 3.7504308223724365px; width: 894.2647981643677px; height: 904.9844934941198px;">
+            <span data-component-token="button">Action Button</span>
+        </button>
+        <div class="component" style="left: 928.2666015625px; top: 188.1075439453125px; width: 873.5684814453125px; height: 354.82012939453125px; padding: 10px;">
+            <p data-component-token="text-block">This is a block of text. It demonstrates the presence and layout of a text-block component detected from the original UI. The dimensions and position are preserved as closely as possible to the detected bounding box.</p>
+        </div>
     </div>
 
-    <script>
-        const backendUrl = 'https://effective-space-orbit-jj4q4pwgw9wrf4gq-5001.app.github.dev/prompt2app-dev/us-central1/app/api/hello';
-
-        document.getElementById('fetchBackendData').addEventListener('click', async () => {
-            try {
-                const response = await fetch(backendUrl, {
-                    method: 'GET',
-                    mode: 'cors',
-                    credentials: 'include',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const data = await response.json();
-                if (typeof data.message !== 'string') {
-                    throw new Error('Backend response must include a string message');
-                }
-                document.getElementById('backendResponse').textContent = data.message;
-            } catch (error) {
-                console.error('Error fetching backend data:', error);
-                document.getElementById('backendResponse').textContent = 'Error fetching data.';
-            }
-        });
-
-        document.addEventListener('DOMContentLoaded', () => {
-             document.getElementById('fetchBackendData').click();
-        });
-    </script>
+    <script src="script.js"></script>
 </body>
 </html>
