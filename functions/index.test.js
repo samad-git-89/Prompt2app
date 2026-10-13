@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { generatePostgresSchema, runPipeline, validateAppSpec, validateGeneratedFiles } from './index.js';
+import uiService from '../api/ui-service.js';
 
 const validSpec = {
   name: 'Task list',
@@ -68,6 +70,9 @@ test('repairs invalid generated files and returns a validated result', async () 
   assert.equal(calls[0].url.includes('test-key'), false);
   assert.equal(calls[0].headers['x-goog-api-key'], 'test-key');
   assert.match(calls[2].body.contents[0].parts[0].text, /Validation errors to fix/);
+  assert.match(calls[1].body.contents[0].parts[0].text, /process\.env\.SUPABASE_URL.*process\.env\.SUPABASE_ANON_KEY/);
+  assert.match(calls[1].body.contents[0].parts[0].text, /\/api\/backend-api\.js/);
+  assert.match(calls[1].body.contents[0].parts[0].text, /\/api\/ui-service\.js/);
 });
 
 test('uses a supplied AppSpec directly without making a separate spec request', async () => {
@@ -111,6 +116,51 @@ test('enforces the five locked component tokens during AppSpec validation', () =
     ...validSpec,
     pages: [{ ...validSpec.pages[0], components: ['TaskList'] }],
   }).some((error) => error.includes('must be equal to one of the allowed values')));
+});
+
+test('UI service returns the environment-backed browser Supabase configuration without caching', async () => {
+  const previousUrl = process.env.SUPABASE_URL;
+  const previousAnonKey = process.env.SUPABASE_ANON_KEY;
+  process.env.SUPABASE_URL = 'https://project.example.supabase.co';
+  process.env.SUPABASE_ANON_KEY = 'test-anon-key';
+
+  const response = {
+    headers: {},
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    setHeader(name, value) {
+      this.headers[name] = value;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    },
+  };
+
+  try {
+    await uiService({ method: 'GET' }, response);
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers['Cache-Control'], 'no-store');
+    assert.deepEqual(response.body.supabaseConfig, {
+      url: 'https://project.example.supabase.co',
+      anonKey: 'test-anon-key',
+    });
+  } finally {
+    if (previousUrl === undefined) delete process.env.SUPABASE_URL;
+    else process.env.SUPABASE_URL = previousUrl;
+    if (previousAnonKey === undefined) delete process.env.SUPABASE_ANON_KEY;
+    else process.env.SUPABASE_ANON_KEY = previousAnonKey;
+  }
+});
+
+test('public page uses explicit API paths and has no hardcoded Supabase placeholders', async () => {
+  const html = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
+  assert.match(html, /fetch\('\/api\/backend-api\.js'\)/);
+  assert.match(html, /fetch\('\/api\/ui-service\.js'\)/);
+  assert.match(html, /window\.supabase\.createClient\(SUPABASE_URL, SUPABASE_ANON_KEY\)/);
+  assert.doesNotMatch(html, /YOUR_SUPABASE_(?:URL|ANON_KEY)/);
 });
 
 test('rejects legacy collection-based data model specs', () => {

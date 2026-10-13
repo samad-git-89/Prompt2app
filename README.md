@@ -30,9 +30,9 @@ prompt -> spec (JSON) -> code generation (file by file) -> validate (lint, build
 ## Rules
 
 - Split data by whole app, never by random rows, to avoid leakage.
-- API keys live only in environment variables or Secret Manager. Never commit them.
+- Privileged API keys live only in environment variables or Secret Manager and never reach browser code. The browser may receive the Supabase anon key at runtime; it is public and must be paired with appropriate row-level security. Never commit `.env` or secret keys.
 - Generated PostgreSQL tables enable row-level security by default.
-- Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in a private local `.env` file; never commit credentials.
+- Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in a private local `.env` file. The UI service reads them from the environment and supplies the browser client configuration at runtime.
 
 See `docs/roadmap.md` for phases.
 

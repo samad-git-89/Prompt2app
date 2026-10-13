@@ -63,12 +63,6 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        // Initialize Supabase client (using placeholder values for demonstration)
-        // In a real application, these should be securely managed, e.g., via environment variables.
-        const SUPABASE_URL = 'YOUR_SUPABASE_URL'; 
-        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
-        const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
         document.addEventListener('DOMContentLoaded', () => {
             const button = document.getElementById('button-1');
             const textBlock = document.getElementById('text-block-1');
@@ -76,7 +70,7 @@
             button.addEventListener('click', async () => {
                 console.log('Button clicked! Attempting to call backend-api.js...');
                 try {
-                    const response = await fetch('/api/backend-api');
+                    const response = await fetch('/api/backend-api.js');
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
@@ -92,12 +86,21 @@
             async function fetchUiServiceData() {
                 console.log('Fetching data from ui-service.js...');
                 try {
-                    const response = await fetch('/api/ui-service');
+                    const response = await fetch('/api/ui-service.js');
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
                     const data = await response.json();
                     console.log('UI Service response:', data);
+                    const SUPABASE_URL = data.supabaseConfig?.url;
+                    const SUPABASE_ANON_KEY = data.supabaseConfig?.anonKey;
+                    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+                        throw new Error('Supabase configuration is missing from the UI service response.');
+                    }
+                    if (!window.supabase?.createClient) {
+                        throw new Error('The Supabase JavaScript client did not load.');
+                    }
+                    window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
                     // You could update UI elements based on uiConfig here
                     if (data.uiConfig && data.uiConfig.buttonText) {
                         button.textContent = data.uiConfig.buttonText;

@@ -20,3 +20,4 @@ training/weights/
 *.safetensors
 *.gguf
 data/*/labels.cache
+.vercel

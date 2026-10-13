@@ -190,6 +190,8 @@ export async function runPipeline({
       'Generate the complete starter code for this app, one file per entry.',
       'Return a JSON object with exactly this shape: {"files":[{"path":"relative/path","content":"file contents"}]}.',
       'For every AppSpec data model, include PostgreSQL DDL in supabase/schema.sql and use the Supabase JavaScript client for database access.',
+      'Return supabaseConfig: { url: process.env.SUPABASE_URL, anonKey: process.env.SUPABASE_ANON_KEY } from /api/ui-service.js and initialize the browser client from it; never hardcode credentials or expose secret/service-role keys.',
+      'Use the explicit .js API routes in browser fetches: /api/backend-api.js and /api/ui-service.js.',
       'Do not generate Firebase or Firestore configuration, rules, or collection access.',
       'Use only the locked UI component tokens in the AppSpec; preserve each token exactly.',
       'Do not include secrets, absolute paths, parent-directory segments, markdown fences, or explanations.',
