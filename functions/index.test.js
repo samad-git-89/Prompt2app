@@ -209,14 +209,38 @@ test('UI service falls back to valid Supabase alias variables when primary value
   }
 });
 
-test('public page initializes Supabase directly and keeps chat requests on the backend API', async () => {
+test('public page persists chat messages directly through the Supabase browser client', async () => {
   const html = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
-  assert.match(html, /fetch\(['"]\/api\/backend-api\.js['"]/);
+  assert.doesNotMatch(html, /fetch\(['"]\/api\/backend-api\.js['"]/);
   assert.doesNotMatch(html, /fetch\(['"]\/api\/ui-service\.js['"]/);
   assert.match(html, /const SUPABASE_URL = "https:\/\/dlnsgydsevubdbsfpipg\.supabase\.co"/);
   assert.match(html, /const SUPABASE_ANON_KEY = "sb_publishable_PHJsJon2xr4yeXPWxBBaIg_76jD8Op-"/);
   assert.match(html, /window\.supabase\.createClient\(SUPABASE_URL, SUPABASE_ANON_KEY\)/);
+  assert.match(html, /let dbClient;/);
+  assert.match(html, /dbClient = window\.supabase\.createClient\(SUPABASE_URL, SUPABASE_ANON_KEY\)/);
+  assert.match(html, /dbClient\s*\.from\('chat_messages'\)\s*\.insert\(\{\s*content: message\s*\}\)/);
+  assert.match(html, /Message processed successfully\. Client-side handshake complete on live database partition!/);
+  assert.match(html, /id="chat-input"/);
+  assert.match(html, /getElementById\('chat-input'\)/);
+  assert.match(html, /id="send-btn"/);
+  assert.match(html, /getElementById\('send-btn'\)/);
+  assert.match(html, /sendButton\.addEventListener\('click', handleSendClick\)/);
+  assert.match(html, /chatInput\.addEventListener\('keydown'/);
+  assert.match(html, /e\.key === 'Enter'[\s\S]*?sendButton\.click\(\)/);
+  assert.match(html, /console\.log\('User submitted message:', message\)/);
+  assert.match(html, /chatComposer\.addEventListener\('submit'/);
+  assert.match(html, /responseBubble\.textContent = 'Message processed successfully\. Client-side handshake complete on live database partition!'/);
+  assert.doesNotMatch(html, /\blet supabase\b|\bsupabase\.auth/);
   assert.doesNotMatch(html, /YOUR_SUPABASE_(?:URL|ANON_KEY)/);
+});
+
+test('chat message schema restricts anonymous users to validated inserts', async () => {
+  const schema = await readFile(new URL('../supabase/schema.sql', import.meta.url), 'utf8');
+  assert.match(schema, /create table if not exists public\.chat_messages/);
+  assert.match(schema, /enable row level security/i);
+  assert.match(schema, /revoke all on table public\.chat_messages from public, anon, authenticated/i);
+  assert.match(schema, /grant insert on table public\.chat_messages to anon/i);
+  assert.match(schema, /for insert\s+to anon\s+with check \(char_length\(btrim\(content\)\) between 1 and 4000\)/i);
 });
 
 test('rejects legacy collection-based data model specs', () => {

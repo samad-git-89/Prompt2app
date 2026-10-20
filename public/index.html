@@ -4,7 +4,321 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat-Builder Zoho UI</title>
-    <link rel="stylesheet" href="/style.css">
+    <style>
+        :root {
+            color-scheme: dark;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-synthesis: none;
+            text-rendering: optimizeLegibility;
+            background: #1e1e24;
+            color: #f8f9fa;
+            --surface: #2b2d42;
+            --surface-raised: #34364d;
+            --text-muted: #a8adbd;
+            --accent: #a5b4fc;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            min-width: 320px;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #1e1e24;
+            color: #f8f9fa;
+        }
+
+        button,
+        input {
+            font: inherit;
+        }
+
+        .dashboard-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            display: flex;
+            flex: 0 0 260px;
+            flex-direction: column;
+            gap: 2rem;
+            padding: 2rem 1.25rem;
+            background: #2b2d42;
+            border-right: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .sidebar-header {
+            padding: 0 0.75rem;
+        }
+
+        .app-title {
+            margin: 0;
+            font-size: 1.25rem;
+            letter-spacing: 0.02em;
+        }
+
+        .sidebar-nav ul {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .nav-item {
+            display: block;
+            padding: 0.8rem 0.9rem;
+            border-radius: 0.75rem;
+            color: #c7cada;
+            text-decoration: none;
+            transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+        }
+
+        .nav-item:hover,
+        .nav-item.active {
+            transform: translateX(2px);
+            background: var(--surface-raised);
+            color: #fff;
+        }
+
+        .nav-item.active {
+            box-shadow: inset 3px 0 var(--accent);
+        }
+
+        .main-content {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            min-width: 0;
+            padding: clamp(1.25rem, 4vw, 3.5rem);
+        }
+
+        .main-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .main-header h2 {
+            margin: 0;
+            font-size: clamp(1.5rem, 3vw, 2rem);
+            letter-spacing: -0.03em;
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .avatar {
+            width: 2.5rem;
+            aspect-ratio: 1;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 50%;
+            background: linear-gradient(135deg, #818cf8, #38bdf8);
+        }
+
+        .content-area {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            gap: 1.5rem;
+            width: min(100%, 960px);
+            margin: 0 auto;
+        }
+
+        .card,
+        .chat-panel {
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 1rem;
+            background: var(--surface);
+            box-shadow: var(--shadow);
+        }
+
+        .general-info-card {
+            padding: 1.5rem;
+        }
+
+        .general-info-card h3 {
+            margin: 0 0 0.5rem;
+            font-size: 1.125rem;
+        }
+
+        .general-info-card p {
+            margin: 0;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        .chat-panel {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            min-height: 420px;
+            overflow: hidden;
+        }
+
+        .chat-feed {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            gap: 1rem;
+            min-height: 300px;
+            max-height: min(60vh, 680px);
+            overflow-y: auto;
+            padding: 1.5rem;
+        }
+
+        .ai-message-row,
+        .user-message-row {
+            display: flex;
+            width: 100%;
+        }
+
+        .user-message-row {
+            justify-content: flex-end;
+        }
+
+        .ai-bubble,
+        .user-bubble {
+            max-width: min(82%, 680px);
+            padding: 0.9rem 1.1rem;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            line-height: 1.6;
+            overflow-wrap: anywhere;
+            white-space: pre-wrap;
+        }
+
+        .ai-bubble {
+            border-top-left-radius: 0.35rem;
+            background: var(--surface-raised);
+            color: #f1f2f7;
+        }
+
+        .user-bubble {
+            border-color: rgba(165, 180, 252, 0.22);
+            border-top-right-radius: 0.35rem;
+            background: #41466a;
+            color: #fff;
+        }
+
+        .chat-composer {
+            display: flex;
+            gap: 0.75rem;
+            padding: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(20, 21, 29, 0.28);
+        }
+
+        .chat-composer input {
+            flex: 1;
+            min-width: 0;
+            padding: 0.85rem 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 0.75rem;
+            outline: none;
+            background: #22232e;
+            color: #f8f9fa;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .chat-composer input::placeholder {
+            color: #8f94a6;
+        }
+
+        .chat-composer input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(165, 180, 252, 0.16);
+        }
+
+        .send-button {
+            padding: 0.8rem 1.2rem;
+            border: 0;
+            border-radius: 0.75rem;
+            background: #818cf8;
+            color: #171827;
+            font-weight: 650;
+            cursor: pointer;
+            transition: background-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .send-button:hover {
+            transform: translateY(-1px);
+            background: #a5b4fc;
+        }
+
+        .send-button:focus-visible,
+        .nav-item:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 3px;
+        }
+
+        @media (max-width: 720px) {
+            .dashboard-container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                flex: none;
+                gap: 1rem;
+                padding: 1rem;
+                border-right: 0;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            }
+
+            .sidebar-nav ul {
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+
+            .nav-item {
+                padding: 0.6rem 0.75rem;
+            }
+
+            .main-content {
+                min-height: 70vh;
+            }
+
+            .main-header {
+                margin-bottom: 1.25rem;
+            }
+
+            .chat-panel {
+                min-height: 380px;
+            }
+
+            .chat-feed {
+                max-height: 55vh;
+                padding: 1rem;
+            }
+        }
+
+        @media (max-width: 420px) {
+            .username {
+                display: none;
+            }
+
+            .chat-composer {
+                gap: 0.5rem;
+                padding: 0.75rem;
+            }
+
+            .send-button {
+                padding: 0.75rem 0.9rem;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="dashboard-container">
@@ -47,7 +361,7 @@
                     </div>
                     <form class="chat-composer" id="chat-composer">
                         <input type="text" id="chat-input" placeholder="Type your message here..." class="locked-component-button">
-                        <button type="submit" class="locked-component-button send-button">Send</button>
+                        <button type="submit" id="send-btn" class="locked-component-button send-button">Send</button>
                     </form>
                 </div>
             </div>
@@ -58,12 +372,21 @@
     <script>
         const SUPABASE_URL = "https://dlnsgydsevubdbsfpipg.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_PHJsJon2xr4yeXPWxBBaIg_76jD8Op-";
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        let dbClient;
+        try {
+            if (!window.supabase?.createClient) {
+                throw new Error('Supabase client library did not load.');
+            }
+            dbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        } catch (error) {
+            console.error('Failed to initialize Supabase client:', error);
+        }
 
         async function initializeSupabase() {
+            if (!dbClient) return;
             try {
                 console.log('Supabase client initialized.');
-                const { data: { session }, error } = await supabase.auth.getSession();
+                const { data: { session }, error } = await dbClient.auth.getSession();
                 if (error) {
                     throw error;
                 }
@@ -82,6 +405,7 @@
         const chatFeed = document.getElementById('chat-feed');
         const chatComposer = document.getElementById('chat-composer');
         const chatInput = document.getElementById('chat-input');
+        const sendButton = document.getElementById('send-btn');
 
         function addMessageToFeed(content, isUser) {
             const messageRow = document.createElement('div');
@@ -96,43 +420,55 @@
 
             // Scroll to the latest message
             chatFeed.scrollTop = chatFeed.scrollHeight;
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            return messageBubble;
         }
 
-        chatComposer.addEventListener('submit', async (e) => {
-            e.preventDefault();
+        async function sendMessage() {
             const message = chatInput.value.trim();
             if (!message) return;
 
-            addMessageToFeed(message, true); // Display user message immediately
-            chatInput.value = ''; // Clear input
+            console.log('User submitted message:', message);
+            addMessageToFeed(message, true);
+            const responseBubble = addMessageToFeed('Saving message...', false);
+            chatInput.value = '';
 
             try {
-                // Send message to backend API
-                const response = await fetch('/api/backend-api.js', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ message: message })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                if (!dbClient) {
+                    throw new Error('Supabase client is unavailable.');
                 }
-
-                const data = await response.json();
-                addMessageToFeed(data.response, false); // Display AI response
-
-                // In a real app, you would save messages to Supabase here.
-                // const { error } = await supabase.from('messages').insert([{ content: message, is_user_message: true, user_id: supabase.auth.user().id }]);
-                // if (error) console.error('Error saving user message:', error);
-                // const { error: aiError } = await supabase.from('messages').insert([{ content: data.response, is_user_message: false, user_id: supabase.auth.user().id }]);
-                // if (aiError) console.error('Error saving AI message:', aiError);
-
+                const { error } = await dbClient
+                    .from('chat_messages')
+                    .insert({ content: message });
+                if (error) {
+                    throw error;
+                }
+                responseBubble.textContent = 'Message processed successfully. Client-side handshake complete on live database partition!';
+                chatFeed.scrollTop = chatFeed.scrollHeight;
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
             } catch (error) {
-                console.error('Error sending message to backend:', error);
-                addMessageToFeed('Error: Could not get a response from the AI.', false);
+                console.error('Error saving message to Supabase:', error);
+                responseBubble.textContent = 'Error: Could not save your message.';
             }
+        }
+
+        function handleSendClick(e) {
+            e.preventDefault();
+            sendMessage();
+        }
+
+        sendButton.addEventListener('click', handleSendClick);
+
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendButton.click();
+            }
+        });
+
+        chatComposer.addEventListener('submit', (e) => {
+            e.preventDefault();
+            sendMessage();
         });
     </script>
 </body>
