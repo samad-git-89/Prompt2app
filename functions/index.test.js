@@ -217,17 +217,20 @@ test('UI service falls back to valid Supabase alias variables when primary value
   }
 });
 
-test('public page persists chat messages directly through the Supabase browser client', async () => {
+test('public page sends chat messages to the same-origin backend route', async () => {
   const html = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
-  assert.doesNotMatch(html, /fetch\(['"]\/api\/backend-api\.js['"]/);
+  assert.match(html, /fetch\(['"]\/api\/backend-api\.js['"]/);
+  assert.match(html, /method:\s*'POST'/);
+  assert.doesNotMatch(html, /mode:\s*['"]cors['"]/);
+  assert.match(html, /body:\s*JSON\.stringify\(\{\s*message\s*\}\)/);
   assert.doesNotMatch(html, /fetch\(['"]\/api\/ui-service\.js['"]/);
+  assert.doesNotMatch(html, /effective-space-orbit-jj4q4pwgw9wrf4gq-5001\.app\.github\.dev/);
   assert.match(html, /const SUPABASE_URL = "https:\/\/dlnsgydsevubdbsfpipg\.supabase\.co"/);
   assert.match(html, /const SUPABASE_ANON_KEY = "sb_publishable_PHJsJon2xr4yeXPWxBBaIg_76jD8Op-"/);
   assert.match(html, /window\.supabase\.createClient\(SUPABASE_URL, SUPABASE_ANON_KEY\)/);
   assert.match(html, /let dbClient;/);
   assert.match(html, /dbClient = window\.supabase\.createClient\(SUPABASE_URL, SUPABASE_ANON_KEY\)/);
-  assert.match(html, /dbClient\s*\.from\('chat_messages'\)\s*\.insert\(\{\s*content: message\s*\}\)/);
-  assert.match(html, /Message processed successfully\. Client-side handshake complete on live database partition!/);
+  assert.match(html, /responseBubble\.textContent = data\.response/);
   assert.match(html, /id="chat-input"/);
   assert.match(html, /getElementById\('chat-input'\)/);
   assert.match(html, /id="send-btn"/);
@@ -237,7 +240,6 @@ test('public page persists chat messages directly through the Supabase browser c
   assert.match(html, /e\.key === 'Enter'[\s\S]*?sendButton\.click\(\)/);
   assert.match(html, /console\.log\('User submitted message:', message\)/);
   assert.match(html, /chatComposer\.addEventListener\('submit'/);
-  assert.match(html, /responseBubble\.textContent = 'Message processed successfully\. Client-side handshake complete on live database partition!'/);
   assert.doesNotMatch(html, /\blet supabase\b|\bsupabase\.auth/);
   assert.doesNotMatch(html, /YOUR_SUPABASE_(?:URL|ANON_KEY)/);
 });

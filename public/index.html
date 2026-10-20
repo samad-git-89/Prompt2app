@@ -430,25 +430,30 @@
 
             console.log('User submitted message:', message);
             addMessageToFeed(message, true);
-            const responseBubble = addMessageToFeed('Saving message...', false);
+            const responseBubble = addMessageToFeed('Connecting...', false);
             chatInput.value = '';
 
             try {
-                if (!dbClient) {
-                    throw new Error('Supabase client is unavailable.');
+                const response = await fetch('/api/backend-api.js', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ message }),
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
-                const { error } = await dbClient
-                    .from('chat_messages')
-                    .insert({ content: message });
-                if (error) {
-                    throw error;
+                const data = await response.json();
+                if (typeof data.response !== 'string' || data.response.length === 0) {
+                    throw new Error('Backend response did not contain a valid response message.');
                 }
-                responseBubble.textContent = 'Message processed successfully. Client-side handshake complete on live database partition!';
+                responseBubble.textContent = data.response;
                 chatFeed.scrollTop = chatFeed.scrollHeight;
                 window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
             } catch (error) {
-                console.error('Error saving message to Supabase:', error);
-                responseBubble.textContent = 'Error: Could not save your message.';
+                console.error('Error sending message to backend:', error);
+                responseBubble.textContent = 'Error: Could not get a response from the backend.';
             }
         }
 
