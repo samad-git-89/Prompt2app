@@ -69,6 +69,14 @@ test('repairs invalid generated files and returns a validated result', async () 
   assert.equal(calls.length, 3);
   assert.equal(calls[0].url.includes('test-key'), false);
   assert.equal(calls[0].headers['x-goog-api-key'], 'test-key');
+  for (const call of calls) {
+    const systemInstruction = call.body.systemInstruction.parts[0].text;
+    assert.match(systemInstruction, /elite Full-Stack Code Authoring Engine/);
+    assert.match(systemInstruction, /only a valid JSON object/);
+    assert.match(systemInstruction, /responsive grid and flexbox layouts/);
+    assert.match(systemInstruction, /use a dbClient variable/);
+    assert.match(systemInstruction, /Never expose secret or service-role keys/);
+  }
   assert.match(calls[2].body.contents[0].parts[0].text, /Validation errors to fix/);
   assert.match(calls[1].body.contents[0].parts[0].text, /\/api\/backend-api\.js/);
   const generationPrompt = calls[1].body.contents[0].parts[0].text;
