@@ -21,3 +21,4 @@ training/weights/
 *.gguf
 data/*/labels.cache
 .vercel
+.env*
