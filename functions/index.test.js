@@ -143,6 +143,8 @@ test('repairs invalid generated files and returns a validated result', async () 
   assert.match(generationPrompt, /fluid flexbox-based layout sizing.*desktop and laptop/);
   assert.match(generationPrompt, /user message in its own user bubble.*assistant response tokens.*AI response block/);
   assert.match(generationPrompt, /Do not ask follow-up questions/);
+  assert.match(generationPrompt, /Do not wait for or require keywords such as “proceed”, “build”, or “start”/);
+  assert.match(generationPrompt, /Do not put terminal commands, shell scripts, local CLI instructions/);
   assert.match(generationPrompt, /Always include the generated app database asset at supabase\/schema\.sql, even when the AppSpec has no custom data models/);
   assert.match(generationPrompt, /per-operation policies scoped to auth\.uid\(\) ownership/);
   assert.match(generationPrompt, /valid vercel\.json with same-origin rewrites/);
@@ -302,6 +304,7 @@ test('public page sends chat messages to the same-origin backend route', async (
   assert.match(html, /quick-reply/);
   assert.match(html, /followup-composer/);
   assert.match(html, /setUXState\('gathering_specs'\)/);
+  assert.doesNotMatch(html, /\bisBuildIntent\b|const isBuildIntent\s*=/);
   assert.match(html, /document\.body\.dataset\.uxState = currentUXState/);
   assert.match(html, /void saveUserMessage\(`Interaction: selected \$\{selectedCategory\}`\)/);
   assert.doesNotMatch(html, /ChatBuilder|Welcome to ChatBuilder|prototype of the Chat-Builder Zoho UI/);
@@ -376,11 +379,16 @@ test('backend route sends chat requests to Gemini using a server-side key', asyn
     assert.equal(request.body.contents[0].parts[0].text, 'Build a dashboard');
     assert.match(request.body.systemInstruction.parts[0].text, /friendly, professional AI product collaborator/);
     assert.match(request.body.systemInstruction.parts[0].text, /Do not show code blocks, raw JSON, YAML/);
+    assert.match(request.body.systemInstruction.parts[0].text, /ask at most one concise question at a time/);
+    assert.match(request.body.systemInstruction.parts[0].text, /Do not require keywords such as/);
+    assert.match(request.body.systemInstruction.parts[0].text, /Never output terminal commands, shell scripts, local CLI instructions/);
+    assert.match(request.body.systemInstruction.parts[0].text, /If a platform generation or deployment tool is not available/);
+    assert.doesNotMatch(request.body.systemInstruction.parts[0].text, /npm --prefix functions run write/);
     assert.equal(request.body.generationConfig.maxOutputTokens, 1536);
     assert.equal(request.body.generationConfig.temperature, 0.7);
     assert.equal(request.body.generationConfig.topP, 0.9);
     assert.equal(request.body.generationConfig.responseMimeType, 'text/plain');
-    assert.match(request.body.systemInstruction.parts[0].text, /public chat endpoint has no workspace file tools/);
+    assert.match(request.body.systemInstruction.parts[0].text, /platform generation or deployment tool is not available/);
   } finally {
     globalThis.fetch = previousFetch;
     if (previousApiKey === undefined) delete process.env.GEMINI_API_KEY;

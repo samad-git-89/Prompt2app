@@ -360,7 +360,9 @@ export async function runPipeline({
     const generationPrompt = [
       'Generate the complete starter code for this app, one file per entry.',
       'Call the provided generate_app_files function with a files array. Include each relative output path and the complete file contents as a string.',
-      'Do not ask follow-up questions. Resolve unspecified details with sensible, secure defaults and immediately generate the complete working app.',
+      'This pipeline is invoked after the conversation contains the core app purpose and layout. Do not wait for or require keywords such as “proceed”, “build”, or “start”; invoke the file-generation tool immediately when this pipeline runs.',
+      'Do not ask follow-up questions in this generation stage. Resolve unspecified details with sensible, secure defaults and immediately generate the complete working app.',
+      'Do not put terminal commands, shell scripts, local CLI instructions, or requests to run npm/node commands in generated user-facing copy or documentation. Generation and delivery are platform responsibilities.',
       'Generate all four end-user capabilities by default: deployment-ready hosting, relational database and file storage, iterative maintenance, and version history with restore controls.',
       'Always include the generated app database asset at supabase/schema.sql, even when the AppSpec has no custom data models. Define concrete PostgreSQL DDL for every app data model, file metadata, version records, and versioned file snapshots. For each table explicitly enable RLS, revoke default PUBLIC/anon access, grant only required operations to authenticated, and create per-operation policies scoped to auth.uid() ownership. Never expose file contents or version history to anonymous users.',
       'Implement Supabase Storage for user file contents where file upload/storage is in scope: include bucket setup guidance and explicit storage.objects policies scoped to the authenticated owner and app-specific bucket. Use least-privilege grants; a database file metadata row is not a substitute for storing file bytes.',

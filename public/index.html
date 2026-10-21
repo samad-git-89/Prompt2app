@@ -778,8 +778,7 @@
             sendButton.disabled = true;
             followupSubmit.disabled = true;
             followupStatus.textContent = 'Thinking through your idea…';
-            const isBuildIntent = /\b(build|start|proceed|generate|create)\b/i.test(message);
-            setUXState(isBuildIntent ? 'generating' : currentUXState === 'idle' ? 'conversing' : currentUXState);
+            setUXState(currentUXState === 'idle' ? 'conversing' : currentUXState);
             try {
                 const response = await fetch('/api/backend-api', {
                     method: 'POST',
