@@ -9,7 +9,7 @@ const integrationTargets = [
 ];
 
 const smokeTestFiles = [
-  { path: 'index.html', content: '<!doctype html><main id="app"></main>\n' },
+  { path: 'public/index.html', content: '<!doctype html><html><body><main id="app"></main></body></html>\n' },
   { path: 'app.js', content: 'document.querySelector("#app").textContent = "UI preview";\n' },
   { path: 'style.css', content: 'body { font-family: sans-serif; }\n' },
   { path: 'backend-api.js', content: 'export function handleRequest() { return { status: 200 }; }\n' },

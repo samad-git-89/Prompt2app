@@ -13,7 +13,10 @@ const validSpec = {
   data_models: [{ table: 'tasks', fields: [{ name: 'title', type: 'string', required: true }] }],
 };
 
-const safeFiles = [{ path: 'src/main.js', content: 'export {};\n' }];
+const safeFiles = [
+  { path: 'src/main.js', content: 'export {};\n' },
+  { path: 'public/index.html', content: '<!doctype html><html><body><main>App</main></body></html>\n' },
+];
 
 function jsonResponse(value) {
   return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(value) }] } }] }));
@@ -31,6 +34,10 @@ test('validates AppSpec against the repository schema', () => {
 });
 
 test('rejects unsafe paths, embedded credentials, and missing PostgreSQL schema for models', () => {
+  assert.ok(validateGeneratedFiles(
+    [{ path: 'src/main.js', content: 'export {};\n' }],
+    { requireApplicationEntryPoint: true },
+  ).some((error) => error.includes('public/index.html')));
   const errors = validateGeneratedFiles([
     { path: '../secret.txt', content: 'nope' },
     { path: 'src/key.js', content: 'const key = "AIza123456789012345678901234567890123456";' },
@@ -83,6 +90,7 @@ test('repairs invalid generated files and returns a validated result', async () 
   });
 
   assert.equal(result.validation.valid, true);
+  assert.ok(result.files.some(({ path }) => path === 'public/index.html'));
   assert.equal(result.repairAttempts, 1);
   assert.equal(result.files.find(({ path }) => path === 'supabase/schema.sql').content, generatePostgresSchema(validSpec.data_models));
   assert.match(result.files.find(({ path }) => path === 'vercel.json').content, /"source": "\/api\/\(\.\*\)"/);
@@ -116,6 +124,8 @@ test('repairs invalid generated files and returns a validated result', async () 
     assert.match(systemInstruction, /only a valid JSON object/);
     assert.match(systemInstruction, /internal machine data/);
     assert.match(systemInstruction, /never a user-facing chat response/);
+    assert.match(systemInstruction, /detailed Web Application component specification.*compile it into the requested application files immediately/);
+    assert.match(systemInstruction, /complete public\/index\.html entry point and supabase\/schema\.sql/);
     assert.match(systemInstruction, /Keep user-facing copy natural/);
     assert.match(systemInstruction, /responsive grid and flexbox layouts/);
     assert.match(systemInstruction, /#0B0F19/);
@@ -145,6 +155,12 @@ test('repairs invalid generated files and returns a validated result', async () 
   assert.match(generationPrompt, /Do not ask follow-up questions/);
   assert.match(generationPrompt, /Do not wait for or require keywords such as “proceed”, “build”, or “start”/);
   assert.match(generationPrompt, /Do not put terminal commands, shell scripts, local CLI instructions/);
+  assert.match(generationPrompt, /detailed component specification as an implementation contract.*complete application files, not a text summary/);
+  assert.match(generationPrompt, /complete, functional public\/index\.html application entry point/);
+  assert.match(generationPrompt, /timestamp, category, severity, source, message, and feedback/);
+  assert.match(generationPrompt, /dashboard feed ordered newest-first/);
+  assert.match(generationPrompt, /interactive trend line charts with selectable time ranges/);
+  assert.match(generationPrompt, /“Export Log” action that downloads the visible log data as correctly escaped CSV/);
   assert.match(generationPrompt, /Always include the generated app database asset at supabase\/schema\.sql, even when the AppSpec has no custom data models/);
   assert.match(generationPrompt, /per-operation policies scoped to auth\.uid\(\) ownership/);
   assert.match(generationPrompt, /valid vercel\.json with same-origin rewrites/);
@@ -381,14 +397,63 @@ test('backend route sends chat requests to Gemini using a server-side key', asyn
     assert.match(request.body.systemInstruction.parts[0].text, /Do not show code blocks, raw JSON, YAML/);
     assert.match(request.body.systemInstruction.parts[0].text, /ask at most one concise question at a time/);
     assert.match(request.body.systemInstruction.parts[0].text, /Do not require keywords such as/);
+    assert.match(request.body.systemInstruction.parts[0].text, /Detailed Web Application component specifications are routed to the file-generation pipeline/);
     assert.match(request.body.systemInstruction.parts[0].text, /Never output terminal commands, shell scripts, local CLI instructions/);
-    assert.match(request.body.systemInstruction.parts[0].text, /If a platform generation or deployment tool is not available/);
     assert.doesNotMatch(request.body.systemInstruction.parts[0].text, /npm --prefix functions run write/);
     assert.equal(request.body.generationConfig.maxOutputTokens, 1536);
     assert.equal(request.body.generationConfig.temperature, 0.7);
     assert.equal(request.body.generationConfig.topP, 0.9);
     assert.equal(request.body.generationConfig.responseMimeType, 'text/plain');
-    assert.match(request.body.systemInstruction.parts[0].text, /platform generation or deployment tool is not available/);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousApiKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousApiKey;
+  }
+});
+
+test('backend routes detailed component specifications through the generation pipeline', async () => {
+  const previousApiKey = process.env.GEMINI_API_KEY;
+  const previousFetch = globalThis.fetch;
+  process.env.GEMINI_API_KEY = 'test-gemini-key';
+  const requests = [];
+  const responses = [
+    jsonResponse(validSpec),
+    functionCallResponse('generate_app_files', { files: safeFiles }),
+  ];
+  globalThis.fetch = async (_url, options) => {
+    requests.push(JSON.parse(options.body));
+    return responses.shift();
+  };
+
+  const response = {
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    },
+  };
+  const message = [
+    'Build a web application with these components:',
+    '- Log fields for timestamp, category, severity, source, and message',
+    '- A chronological feedback dashboard feed',
+    '- Interactive trend line charts',
+    '- An Export Log action',
+  ].join('\n');
+
+  try {
+    await backendApi({ method: 'POST', body: { message } }, response);
+    assert.equal(response.statusCode, 200);
+    assert.equal(requests.length, 2);
+    assert.equal(requests[0].tools, undefined);
+    assert.equal(requests[1].tools[0].functionDeclarations[0].name, 'generate_app_files');
+    assert.match(response.body.response, /^Generated \d+ validated app files:/);
+    assert.ok(Array.isArray(response.body.files));
+    assert.ok(response.body.files.some(({ path }) => path === 'public/index.html'));
+    assert.ok(response.body.files.some(({ path }) => path === 'supabase/schema.sql'));
+    assert.doesNotMatch(response.body.response, /Log fields for timestamp/);
   } finally {
     globalThis.fetch = previousFetch;
     if (previousApiKey === undefined) delete process.env.GEMINI_API_KEY;

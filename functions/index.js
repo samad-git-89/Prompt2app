@@ -37,6 +37,8 @@ const systemInstructionTemplate = [
   'Use clear product thinking to turn the request into a polished, approachable experience with intuitive flows, helpful labels, and thoughtful empty and error states.',
   'This generation pipeline uses structured responses as internal machine data. Return only a valid JSON object matching the exact output shape requested for the current task: an AppSpec object matching the supplied AppSpec schema, or a generated-files object with a files array. The pipeline parses and validates this data before use; it is never a user-facing chat response. Do not add explanations, Markdown fences, or text outside the JSON object.',
   'When generating application code, strictly follow the validated AppSpec, including its page routes, data models, and locked component tokens. Keep user-facing copy natural, helpful, and free of raw schemas, JSON, YAML, and implementation commentary.',
+  'When the request includes a detailed Web Application component specification, compile it into the requested application files immediately; do not answer with a conversational summary or repeat the requirements.',
+  'Generated applications must include a complete public/index.html entry point and supabase/schema.sql, plus the supporting assets needed to make the specified app functional.',
   'Use a premium, ultra-modern dark SaaS visual foundation: deep charcoal and midnight-blue gradients rooted in #0B0F19, layered surfaces, subtle borders, generous spacing, and crisp readable typography. Use #a5b4fc and #38bdf8 sparingly for highlighted words, focus states, and primary actions.',
   'Create an expressive centered hero banner that leads into a responsive workspace grid of floating, elevated input/project cards. For app-builder or workspace-generation interfaces, include clear category tags labeled Site, SaaS, and API. Avoid plain unstyled forms and generic flat panels.',
   'For the prompt2app product landing page, use the headline “What are we building?” (or “What you will Build Today”), concise product-focused supporting copy, elegant navigation, a floating prompt composer, clickable Site/SaaS/API category tags, and a few polished example idea cards.',
@@ -191,7 +193,10 @@ CREATE POLICY app_file_versions_owner_delete ON public.app_file_versions
   return `${[...coreStatements, ...modelStatements].join('\n\n')}\n`;
 }
 
-export function validateGeneratedFiles(files, { requireDatabaseSchema = false } = {}) {
+export function validateGeneratedFiles(files, {
+  requireDatabaseSchema = false,
+  requireApplicationEntryPoint = false,
+} = {}) {
   const errors = [];
 
   if (!Array.isArray(files) || files.length === 0 || files.length > maxFileCount) {
@@ -202,6 +207,7 @@ export function validateGeneratedFiles(files, { requireDatabaseSchema = false } 
   let totalSize = 0;
   let foundDatabaseSchema = false;
   let databaseSchemaContent = '';
+  let foundApplicationEntryPoint = false;
 
   for (const [index, file] of files.entries()) {
     if (!file || typeof file.path !== 'string' || typeof file.content !== 'string') {
@@ -239,8 +245,14 @@ export function validateGeneratedFiles(files, { requireDatabaseSchema = false } 
       foundDatabaseSchema = true;
       databaseSchemaContent = file.content;
     }
+    if (file.path === 'public/index.html' && file.content.trim().length > 0) {
+      foundApplicationEntryPoint = true;
+    }
   }
 
+  if (requireApplicationEntryPoint && !foundApplicationEntryPoint) {
+    errors.push('generated files must include a non-empty application entry point at public/index.html');
+  }
   if (requireDatabaseSchema && !foundDatabaseSchema) {
     errors.push('generated files must include PostgreSQL table DDL at supabase/schema.sql');
   } else if (requireDatabaseSchema) {
@@ -360,6 +372,9 @@ export async function runPipeline({
     const generationPrompt = [
       'Generate the complete starter code for this app, one file per entry.',
       'Call the provided generate_app_files function with a files array. Include each relative output path and the complete file contents as a string.',
+      'Treat a detailed component specification as an implementation contract: immediately compile it into complete application files, not a text summary, paraphrase, plan, or request for confirmation.',
+      'Always generate a complete, functional public/index.html application entry point alongside the required Supabase schema and supporting assets. Do not return an empty or placeholder page.',
+      'Natively implement a log module with fields for timestamp, category, severity, source, message, and feedback; a dashboard feed ordered newest-first by feedback/log timestamp; interactive trend line charts with selectable time ranges and accessible hover/focus details; and a working “Export Log” action that downloads the visible log data as correctly escaped CSV. Include the corresponding data model and working UI behaviors rather than static mockup controls.',
       'This pipeline is invoked after the conversation contains the core app purpose and layout. Do not wait for or require keywords such as “proceed”, “build”, or “start”; invoke the file-generation tool immediately when this pipeline runs.',
       'Do not ask follow-up questions in this generation stage. Resolve unspecified details with sensible, secure defaults and immediately generate the complete working app.',
       'Do not put terminal commands, shell scripts, local CLI instructions, or requests to run npm/node commands in generated user-facing copy or documentation. Generation and delivery are platform responsibilities.',
@@ -453,6 +468,7 @@ export async function runPipeline({
     }
     validationErrors = validateGeneratedFiles(files, {
       requireDatabaseSchema: true,
+      requireApplicationEntryPoint: true,
     });
     if (validationErrors.length === 0) {
       return { spec: specResult, files, validation: { valid: true, errors: [] }, repairAttempts };

@@ -199,7 +199,7 @@ test('integration target selection leaves unrelated generated destinations untou
     await mkdir(join(root, 'functions', 'generated'), { recursive: true });
     await writeFile(join(root, 'functions', 'generated', 'package.json'), protectedPackage);
     const files = [
-      { path: 'index.html', content: '<main>Generated UI</main>\n' },
+      { path: 'public/index.html', content: '<!doctype html><html><body><main>Generated UI</main></body></html>\n' },
       { path: 'backend-api.js', content: 'export function handleRequest() {}\n' },
       { path: 'supabase/schema.sql', content: schema },
       { path: 'vercel.json', content: '{"outputDirectory":"public"}\n' },
@@ -246,7 +246,7 @@ test('integration target selection leaves unrelated generated destinations untou
 test('local generation safely replaces generated files and preserves 644 permissions', async () => {
   const root = await mkdtemp(join(tmpdir(), 'prompt2app-writer-'));
   const files = [
-    { path: 'index.html', content: '<main>Updated UI</main>\n' },
+    { path: 'public/index.html', content: '<!doctype html><html><body><main>Updated UI</main></body></html>\n' },
     { path: 'style.css', content: 'body { color: white; }\n' },
     { path: 'script.js', content: 'export const ready = true;\n' },
     { path: 'backend-api.js', content: 'export function handleRequest() { return "updated"; }\n' },
