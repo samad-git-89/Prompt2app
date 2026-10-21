@@ -615,20 +615,7 @@
         </main>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        const SUPABASE_URL = "https://dlnsgydsevubdbsfpipg.supabase.co";
-        const SUPABASE_ANON_KEY = "sb_publishable_PHJsJon2xr4yeXPWxBBaIg_76jD8Op-";
-        let dbClient;
-        try {
-            if (!window.supabase?.createClient) {
-                throw new Error('Supabase client library did not load.');
-            }
-            dbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        } catch (error) {
-            console.error('Failed to initialize Supabase client:', error);
-        }
-
         const chatFeed = document.getElementById('chat-feed');
         const chatInput = document.getElementById('chat-input');
         const sendButton = document.getElementById('send-btn');
@@ -701,7 +688,6 @@
                 try {
                     await navigator.clipboard.writeText(responseText);
                     copyButton.querySelector('span:last-child').textContent = 'Copied';
-                    void saveUserMessage('Interaction: copied assistant response');
                 } catch (error) {
                     console.error('Failed to copy assistant response:', error);
                 }
@@ -722,26 +708,12 @@
                         control.setAttribute('aria-pressed', 'false');
                     });
                     button.setAttribute('aria-pressed', String(!pressed));
-                    if (!pressed) void saveUserMessage(`Feedback: ${label}`);
                 });
                 utilityRow.appendChild(button);
             }
 
             messageContent.appendChild(utilityRow);
             scrollConversationToBottom();
-        }
-
-        async function saveUserMessage(message) {
-            if (!dbClient) {
-                console.error('Supabase client is unavailable; chat message was not saved.');
-                return;
-            }
-            try {
-                const { error } = await dbClient.from('chat_messages').insert({ content: message });
-                if (error) throw error;
-            } catch (error) {
-                console.error('Failed to save chat message to Supabase:', error);
-            }
         }
 
         function renderQuickReplies() {
@@ -771,7 +743,6 @@
             if (!message || submitButton.disabled) return;
             conversationHistory.push({ role: 'user', content: message });
             addMessageToFeed(message, true);
-            void saveUserMessage(message);
             const assistantMessage = addMessageToFeed('Thinking through your idea…', false);
             const responseBubble = assistantMessage.bubble;
             input.value = '';
@@ -785,8 +756,16 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ message: buildConversationPrompt() }),
                 });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error || `Request failed (${response.status}).`);
+                const responseText = await response.text();
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch {
+                    throw new Error('The app server returned an unexpected response. Please try again later.');
+                }
+                if (!response.ok) {
+                    throw new Error(data.error || data.response || `Request failed (${response.status}).`);
+                }
                 if (typeof data.response !== 'string' || data.response.length === 0) {
                     throw new Error('The assistant returned an empty response.');
                 }
@@ -823,7 +802,6 @@
                 document.querySelectorAll('.category-tag').forEach((tag) => {
                     tag.setAttribute('aria-pressed', String(tag === button));
                 });
-                void saveUserMessage(`Interaction: selected ${selectedCategory}`);
             });
         });
 
@@ -833,7 +811,6 @@
                 chatInput.value = button.dataset.prompt;
                 chatInput.focus();
                 document.getElementById('workspace').scrollIntoView({ behavior: 'smooth', block: 'center' });
-                void saveUserMessage(`Interaction: selected ${button.dataset.category} example`);
             });
         });
 

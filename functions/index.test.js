@@ -302,7 +302,7 @@ test('UI service falls back to valid Supabase alias variables when primary value
   }
 });
 
-test('public page sends chat messages to the same-origin backend route', async () => {
+test('public page sends chat messages to the same-origin backend and safely handles non-JSON errors', async () => {
   const html = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
   assert.match(html, /What are we <span class="headline-accent">building\?<\/span>/);
   assert.match(html, /prompt2app/);
@@ -322,19 +322,16 @@ test('public page sends chat messages to the same-origin backend route', async (
   assert.match(html, /setUXState\('gathering_specs'\)/);
   assert.doesNotMatch(html, /\bisBuildIntent\b|const isBuildIntent\s*=/);
   assert.match(html, /document\.body\.dataset\.uxState = currentUXState/);
-  assert.match(html, /void saveUserMessage\(`Interaction: selected \$\{selectedCategory\}`\)/);
   assert.doesNotMatch(html, /ChatBuilder|Welcome to ChatBuilder|prototype of the Chat-Builder Zoho UI/);
   assert.match(html, /fetch\(['"]\/api\/backend-api['"]/);
   assert.match(html, /method:\s*'POST'/);
-  assert.doesNotMatch(html, /mode:\s*['"]cors['"]/);
   assert.match(html, /body:\s*JSON\.stringify\(\{\s*message:\s*buildConversationPrompt\(\)\s*\}\)/);
   assert.doesNotMatch(html, /fetch\(['"]\/api\/ui-service\.js['"]/);
-  assert.doesNotMatch(html, /effective-space-orbit-jj4q4pwgw9wrf4gq-5001\.app\.github\.dev/);
-  assert.match(html, /const SUPABASE_URL = "https:\/\/dlnsgydsevubdbsfpipg\.supabase\.co"/);
-  assert.match(html, /const SUPABASE_ANON_KEY = "sb_publishable_PHJsJon2xr4yeXPWxBBaIg_76jD8Op-"/);
-  assert.match(html, /window\.supabase\.createClient\(SUPABASE_URL, SUPABASE_ANON_KEY\)/);
-  assert.match(html, /let dbClient;/);
-  assert.match(html, /dbClient = window\.supabase\.createClient\(SUPABASE_URL, SUPABASE_ANON_KEY\)/);
+  assert.match(html, /const responseText = await response\.text\(\)/);
+  assert.match(html, /data = JSON\.parse\(responseText\)/);
+  assert.match(html, /The app server returned an unexpected response\. Please try again later\./);
+  assert.match(html, /data\.error \|\| data\.response \|\| `Request failed/);
+  assert.doesNotMatch(html, /dbClient|saveUserMessage|\.from\(|\.insert\(/);
   assert.match(html, /responseBubble\.textContent = data\.response/);
   assert.match(html, /class="chat-feed" id="chat-feed"[^>]*aria-live="polite"/);
   assert.match(html, /background: #2563eb/);
@@ -347,8 +344,6 @@ test('public page sends chat messages to the same-origin backend route', async (
   assert.match(html, /chatFeed\.scrollTo\(\{\s*top:\s*chatFeed\.scrollHeight,\s*behavior:\s*'smooth'\s*\}\)/);
   assert.match(html, /addResponseUtilities\(assistantMessage\.messageContent, data\.response\)/);
   assert.match(html, /responseBubble\.textContent = `Sorry, I couldn't get a response just now\. \$\{error\.message\}`/);
-  assert.match(html, /from\('chat_messages'\)[\s\S]*?insert\(\{\s*content:\s*message\s*\}\)/);
-  assert.match(html, /void saveUserMessage\(message\)/);
   assert.match(html, /id="chat-input"/);
   assert.match(html, /getElementById\('chat-input'\)/);
   assert.match(html, /id="send-btn"/);
@@ -357,10 +352,7 @@ test('public page sends chat messages to the same-origin backend route', async (
   assert.match(html, /event\.preventDefault\(\);\s*void sendMessage\(undefined, chatInput, sendButton\)/);
   assert.match(html, /followupComposer\.addEventListener\('submit'/);
   assert.match(html, /void sendMessage\(undefined, followupInput, followupSubmit\)/);
-  assert.match(html, /void saveUserMessage\(message\)/);
-  assert.match(html, /void saveUserMessage\(`Feedback: \$\{label\}`\)/);
   assert.doesNotMatch(html, /\blet supabase\b|\bsupabase\.auth/);
-  assert.doesNotMatch(html, /YOUR_SUPABASE_(?:URL|ANON_KEY)/);
 });
 
 test('backend route sends chat requests to Gemini using a server-side key', async () => {
