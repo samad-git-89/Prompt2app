@@ -105,6 +105,71 @@ test('overwrites only explicitly approved regular-file targets', async () => {
   }
 });
 
+test('records incremental file versions and snapshots prior non-secret contents', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'prompt2app-writer-'));
+  const firstVersion = [
+    { path: 'index.html', content: '<main>Version one</main>\n' },
+    { path: 'script.js', content: 'export const version = 1;\n' },
+  ];
+  const secondVersion = [
+    { path: 'index.html', content: '<main>Version two</main>\n' },
+    { path: 'script.js', content: 'export const version = 2;\n' },
+  ];
+  try {
+    await writeGeneratedFiles(firstVersion, { repoRoot: root });
+    await writeGeneratedFiles(secondVersion, {
+      repoRoot: root,
+      overwriteTargets: ['public/index.html', 'public/script.js'],
+    });
+
+    const manifestPath = join(root, '.prompt2app', 'version-history.json');
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+    assert.equal(manifest.formatVersion, 1);
+    assert.equal(manifest.versions.length, 2);
+    assert.deepEqual(
+      manifest.versions[1].files.map(({ target, action }) => [target, action]),
+      [['public/index.html', 'updated'], ['public/script.js', 'updated']],
+    );
+    for (const entry of manifest.versions[1].files) {
+      const snapshotPath = join(root, ...entry.snapshot.split('/'));
+      assert.ok(entry.beforeSha256);
+      assert.ok(entry.afterSha256);
+      assert.equal((await readFile(snapshotPath, 'utf8')), firstVersion.find(
+        ({ path }) => `public/${path}` === entry.target,
+      ).content);
+      assert.equal((await stat(snapshotPath)).mode & 0o777, 0o644);
+    }
+    assert.equal((await stat(manifestPath)).mode & 0o777, 0o644);
+    assert.equal(await readFile(join(root, 'public', 'index.html'), 'utf8'), secondVersion[0].content);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('keeps credential-like preexisting contents out of version snapshots', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'prompt2app-writer-'));
+  try {
+    await mkdir(join(root, 'public'));
+    await writeFile(
+      join(root, 'public', 'script.js'),
+      'const API_KEY = "sk-123456789012345678901234";\n',
+    );
+    await writeGeneratedFiles(
+      [{ path: 'script.js', content: 'export const ready = true;\n' }],
+      { repoRoot: root, overwriteTargets: ['public/script.js'] },
+    );
+
+    const manifest = JSON.parse(await readFile(
+      join(root, '.prompt2app', 'version-history.json'),
+      'utf8',
+    ));
+    assert.equal(manifest.versions[0].files[0].beforeSha256.length, 64);
+    assert.equal(manifest.versions[0].files[0].snapshot, null);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('unsafe generated files are rejected before overwriting any existing files', async () => {
   const root = await mkdtemp(join(tmpdir(), 'prompt2app-writer-'));
   try {
@@ -202,7 +267,7 @@ test('local generation safely replaces generated files and preserves 644 permiss
         content: { parts: [{ functionCall: { name: 'generate_app_files', args: { files } } }] },
       }],
     }));
-    const { written } = await runAndWrite('Update the app', {
+    const { result, written } = await runAndWrite('Update the app', {
       apiKey: 'test-key',
       appSpec: {
         name: 'Test UI',
@@ -216,13 +281,25 @@ test('local generation safely replaces generated files and preserves 644 permiss
       overwriteGeneratedFiles: true,
     });
 
-    assert.equal(written.length, files.length);
+    assert.equal(written.length, files.length + 2);
+    assert.ok(written.some(({ target }) => target === 'vercel.json'));
+    assert.ok(written.some(({ target }) => target === 'public/app.metadata.json'));
     assert.equal(await readFile(join(root, 'public', 'index.html'), 'utf8'), files[0].content);
     assert.equal(await readFile(join(root, 'public', 'style.css'), 'utf8'), files[1].content);
     assert.equal(await readFile(join(root, 'api', 'backend-api.js'), 'utf8'), files[3].content);
-    assert.equal(await readFile(join(root, 'supabase', 'schema.sql'), 'utf8'), schema);
+    assert.equal(
+      await readFile(join(root, 'supabase', 'schema.sql'), 'utf8'),
+      result.files.find(({ path }) => path === 'supabase/schema.sql').content,
+    );
     assert.equal(await readFile(join(root, 'public', 'keep.txt'), 'utf8'), 'preserve this file\n');
-    for (const target of ['public/index.html', 'public/style.css', 'api/backend-api.js', 'supabase/schema.sql']) {
+    for (const target of [
+      'public/index.html',
+      'public/style.css',
+      'api/backend-api.js',
+      'supabase/schema.sql',
+      'vercel.json',
+      'public/app.metadata.json',
+    ]) {
       assert.equal((await stat(join(root, target))).mode & 0o777, 0o644);
     }
   } finally {

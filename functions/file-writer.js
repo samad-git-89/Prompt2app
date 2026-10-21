@@ -1,14 +1,16 @@
-import { randomUUID } from 'node:crypto';
-import { open, link, lstat, mkdir, realpath, rename, unlink, rmdir } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { open, link, lstat, mkdir, readFile, realpath, rename, unlink, rmdir } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { runPipeline, validateGeneratedFiles } from './index.js';
 
 const repositoryRoot = fileURLToPath(new URL('..', import.meta.url));
 const fileMode = 0o644;
-const restrictedSegments = new Set(['.git', 'node_modules']);
+const restrictedSegments = new Set(['.git', 'node_modules', '.prompt2app']);
+const historyManifestTarget = '.prompt2app/version-history.json';
+const credentialPattern = /AIza[0-9A-Za-z_-]{30,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|\b(?:api[_-]?key|client[_-]?secret|secret|password|access[_-]?token|private[_-]?key)\b\s*[:=]\s*["'`][^"'`\r\n]{8,}["'`]|(?:sk-[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{20,})/i;
 
-function validateLogicalPath(filePath) {
+function validateLogicalPath(filePath, allowHistory = false) {
   if (typeof filePath !== 'string' || filePath.length === 0 || filePath.includes('\\') || filePath.includes(':')) {
     throw new Error('Generated file path must be a non-empty relative path');
   }
@@ -17,14 +19,16 @@ function validateLogicalPath(filePath) {
   if (
     filePath.startsWith('/') ||
     segments.some((segment) => segment === '' || segment === '.' || segment === '..') ||
-    segments.some((segment) => restrictedSegments.has(segment) || /^\.env(?:\.|$)/i.test(segment))
+    segments.some((segment) =>
+      (restrictedSegments.has(segment) && !(allowHistory && segment === '.prompt2app'))
+      || /^\.env(?:\.|$)/i.test(segment))
   ) {
     throw new Error(`Unsafe generated file path: ${filePath}`);
   }
   return segments;
 }
 
-export function routeGeneratedFiles(files) {
+export function routeGeneratedFiles(files, allowHistory = false) {
   if (!Array.isArray(files)) throw new TypeError('files must be an array');
 
   const routed = files.map((file) => {
@@ -32,10 +36,12 @@ export function routeGeneratedFiles(files) {
       throw new TypeError('Each generated file must have string path and content properties');
     }
 
-    const segments = validateLogicalPath(file.path);
+    const segments = validateLogicalPath(file.path, allowHistory);
     let targetSegments;
 
-    if (segments[0] === 'public' || segments[0] === 'src' || segments[0] === 'api' || segments[0] === 'supabase') {
+    if (allowHistory && segments[0] === '.prompt2app') {
+      targetSegments = segments;
+    } else if (segments[0] === 'public' || segments[0] === 'src' || segments[0] === 'api' || segments[0] === 'supabase') {
       targetSegments = segments;
     } else if (file.path === 'vercel.json') {
       targetSegments = segments;
@@ -163,12 +169,82 @@ export async function writeGeneratedFiles(
     throw new Error('No backend-prefixed files are available to write');
   }
   const root = await realpath(resolve(repoRoot));
-  const destinations = new Map();
+  const originalDestinations = new Map();
   for (const file of routedFiles) {
-    destinations.set(
+    originalDestinations.set(
       file.target,
       await inspectDestination(root, file.target, overwriteTargetSet),
     );
+  }
+
+  const versionId = `${new Date().toISOString().replaceAll(/[:.]/g, '-')}-${randomUUID()}`;
+  const historyManifestDestination = await inspectDestination(
+    root,
+    historyManifestTarget,
+    new Set([...overwriteTargetSet, historyManifestTarget]),
+  );
+  let history = { formatVersion: 1, versions: [] };
+  if (historyManifestDestination.existing) {
+    const existingHistory = JSON.parse(await readFile(historyManifestDestination.destination, 'utf8'));
+    if (
+      existingHistory?.formatVersion !== 1
+      || !Array.isArray(existingHistory.versions)
+    ) {
+      throw new Error(`Invalid version history manifest: ${historyManifestTarget}`);
+    }
+    history = existingHistory;
+  }
+
+  const versionFiles = [];
+  const versionEntries = [];
+  for (const file of routedFiles) {
+    const destinationInfo = originalDestinations.get(file.target);
+    const entry = {
+      target: file.target,
+      action: destinationInfo.existing ? 'updated' : 'created',
+      beforeSha256: null,
+      afterSha256: createHash('sha256').update(file.content).digest('hex'),
+      snapshot: null,
+    };
+    if (destinationInfo.existing) {
+      const previousContent = await readFile(destinationInfo.destination, 'utf8');
+      entry.beforeSha256 = createHash('sha256').update(previousContent).digest('hex');
+      if (
+        Buffer.byteLength(previousContent, 'utf8') <= 1024 * 1024
+        && !credentialPattern.test(previousContent)
+      ) {
+        entry.snapshot = `.prompt2app/versions/${versionId}/${file.target}`;
+        versionFiles.push({ path: entry.snapshot, content: previousContent });
+      }
+    }
+    versionEntries.push(entry);
+  }
+  history.versions.push({
+    id: versionId,
+    createdAt: new Date().toISOString(),
+    files: versionEntries,
+  });
+  const historyContent = `${JSON.stringify(history, null, 2)}\n`;
+  if (Buffer.byteLength(historyContent, 'utf8') > 1024 * 1024) {
+    throw new Error(`Version history manifest exceeds the 1 MiB limit: ${historyManifestTarget}`);
+  }
+
+  const historyArtifacts = [
+    ...versionFiles,
+    { path: historyManifestTarget, content: historyContent },
+  ];
+  const routedHistoryArtifacts = routeGeneratedFiles(historyArtifacts, true);
+  const transactionFiles = [...routedFiles, ...routedHistoryArtifacts];
+  const transactionOverwriteTargets = new Set([...overwriteTargetSet, historyManifestTarget]);
+  const destinations = new Map();
+  for (const file of routedHistoryArtifacts) {
+    destinations.set(
+      file.target,
+      await inspectDestination(root, file.target, transactionOverwriteTargets),
+    );
+  }
+  for (const file of routedFiles) {
+    destinations.set(file.target, originalDestinations.get(file.target));
   }
 
   const createdDirectories = [];
@@ -177,7 +253,7 @@ export async function writeGeneratedFiles(
   const committedFiles = [];
 
   try {
-    for (const file of routedFiles) {
+    for (const file of transactionFiles) {
       const { destination } = destinations.get(file.target);
       await ensureDirectories(dirname(destination), root, createdDirectories);
 
@@ -193,8 +269,8 @@ export async function writeGeneratedFiles(
       }
     }
 
-    for (let index = 0; index < routedFiles.length; index += 1) {
-      const file = routedFiles[index];
+    for (let index = 0; index < transactionFiles.length; index += 1) {
+      const file = transactionFiles[index];
       const { destination, existing } = destinations.get(file.target);
       if (existing) {
         const current = await lstat(destination);
@@ -292,7 +368,9 @@ export async function runAndWrite(
     'Generate at least 5 total files and at least one backend JavaScript script whose filename begins with backend- (for example, backend-index.js).',
     'Emit browser assets under public/ or application modules under src/.',
     'Emit Vercel serverless handlers under api/ or as backend-*.js files.',
-    'For every AppSpec data model, provide Supabase-compatible PostgreSQL DDL in supabase/schema.sql.',
+    'Always provide the secure version/file/data-model PostgreSQL schema in supabase/schema.sql, including for apps with no custom data models.',
+    'Include a valid Vercel configuration for public/ assets and api/ handlers; configuration scaffolding does not itself deploy the app.',
+    'Do not ask follow-up questions; infer sensible secure defaults and generate the app immediately.',
     'Use the supplied AppSpec schema and preserve the five locked UI component tokens exactly.',
     'Do not generate or replace the pipeline utility at functions/index.js.',
     ...requiredTargets.map((target) => `Include an output file that routes to ${target}.`),

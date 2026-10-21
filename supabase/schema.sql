@@ -1,19 +1,16 @@
--- Prompt2app Core Database Schema
-create table if not exists public.chat_messages (
-    id uuid default gen_random_uuid() primary key,
-    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-    message text not null,
-    response text,
-    sender_role text default 'user'::text
+-- Prompt2app chat prompt tracking. Chat content is intentionally not readable
+-- through the public Data API; assistant responses are rendered in the client.
+CREATE TABLE IF NOT EXISTS public.chat_messages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  content text NOT NULL CHECK (char_length(btrim(content)) BETWEEN 1 AND 4000)
 );
 
--- Enable Row-Level Security
-alter table public.chat_messages enable row level security;
+ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.chat_messages FROM PUBLIC, anon, authenticated;
+GRANT INSERT ON TABLE public.chat_messages TO anon;
 
--- Enable public anonymous insert-only access
-create policy "Allow anon insert access" on public.chat_messages 
-    for insert to anon with check (char_length(message) <= 4000);
-
--- Enable public anonymous select access for live rendering
-create policy "Allow anon select access" on public.chat_messages 
-    for select to anon using (true);
+DROP POLICY IF EXISTS chat_messages_anon_insert ON public.chat_messages;
+CREATE POLICY chat_messages_anon_insert ON public.chat_messages
+  FOR INSERT TO anon
+  WITH CHECK (char_length(btrim(content)) BETWEEN 1 AND 4000);

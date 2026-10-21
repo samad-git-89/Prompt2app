@@ -43,13 +43,26 @@ test('rejects unsafe paths, embedded credentials, and missing PostgreSQL schema 
 });
 
 test('generates deterministic PostgreSQL DDL from AppSpec table models', () => {
-  assert.equal(
-    generatePostgresSchema(validSpec.data_models),
-    'CREATE TABLE IF NOT EXISTS "tasks" (\n'
-      + '  "id" uuid NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),\n'
-      + '  "title" text NOT NULL\n'
-      + ');\nALTER TABLE "tasks" ENABLE ROW LEVEL SECURITY;\n',
-  );
+  const schema = generatePostgresSchema(validSpec.data_models);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS public\.app_versions/);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS public\.app_files/);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS public\.app_file_versions/);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS public\."tasks"/);
+  assert.match(schema, /"owner_id" uuid NOT NULL REFERENCES auth\.users\(id\) ON DELETE CASCADE/);
+  assert.match(schema, /ALTER TABLE public\."tasks" ENABLE ROW LEVEL SECURITY/);
+  assert.match(schema, /FOR SELECT TO authenticated USING \(\(select auth\.uid\(\)\) = "owner_id"\)/);
+  assert.match(schema, /FOR UPDATE TO authenticated .*WITH CHECK \(\(select auth\.uid\(\)\) = "owner_id"\)/);
+  assert.match(schema, /REVOKE ALL ON TABLE public\."tasks" FROM PUBLIC, anon, authenticated/);
+  assert.match(schema, /GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public\."tasks" TO authenticated/);
+});
+
+test('always creates a secure PostgreSQL version schema when the AppSpec has no models', () => {
+  const schema = generatePostgresSchema([]);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS public\.app_versions/);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS public\.app_file_versions/);
+  assert.match(schema, /ALTER TABLE public\.app_file_versions ENABLE ROW LEVEL SECURITY/);
+  assert.match(schema, /CREATE POLICY app_file_versions_owner_insert/);
+  assert.doesNotMatch(schema, /\bTO anon\b/);
 });
 
 test('repairs invalid generated files and returns a validated result', async () => {
@@ -72,6 +85,20 @@ test('repairs invalid generated files and returns a validated result', async () 
   assert.equal(result.validation.valid, true);
   assert.equal(result.repairAttempts, 1);
   assert.equal(result.files.find(({ path }) => path === 'supabase/schema.sql').content, generatePostgresSchema(validSpec.data_models));
+  assert.match(result.files.find(({ path }) => path === 'vercel.json').content, /"source": "\/api\/\(\.\*\)"/);
+  const appMetadata = JSON.parse(result.files.find(({ path }) => path === 'app.metadata.json').content);
+  assert.deepEqual(appMetadata, {
+    schemaVersion: 1,
+    appVersion: '1.0.0',
+    appName: validSpec.name,
+    changeSummary: 'Initial generated release',
+    versionHistory: {
+      storage: 'supabase.app_versions',
+      fileSnapshots: 'supabase.app_file_versions',
+      iterativeEdits: true,
+    },
+  });
+  assert.match(calls[0].body.contents[0].parts[0].text, /Do not ask the user clarifying questions/);
   assert.equal(result.spec.pages[0].components.join(','), validSpec.pages[0].components.join(','));
   assert.equal(calls.length, 3);
   assert.equal(calls[0].url.includes('test-key'), false);
@@ -115,6 +142,20 @@ test('repairs invalid generated files and returns a validated result', async () 
   assert.match(generationPrompt, /8px-or-greater corner radii.*box-shadows.*0\.2s ease/);
   assert.match(generationPrompt, /fluid flexbox-based layout sizing.*desktop and laptop/);
   assert.match(generationPrompt, /user message in its own user bubble.*assistant response tokens.*AI response block/);
+  assert.match(generationPrompt, /Do not ask follow-up questions/);
+  assert.match(generationPrompt, /Always include the generated app database asset at supabase\/schema\.sql, even when the AppSpec has no custom data models/);
+  assert.match(generationPrompt, /per-operation policies scoped to auth\.uid\(\) ownership/);
+  assert.match(generationPrompt, /valid vercel\.json with same-origin rewrites/);
+  assert.match(generationPrompt, /immutable version snapshots/);
+  assert.match(generationPrompt, /Generate all four end-user capabilities by default/);
+  assert.match(generationPrompt, /file metadata, version records, and versioned file snapshots/);
+  assert.match(generationPrompt, /explicit storage\.objects policies/);
+  assert.match(generationPrompt, /viewing version history, comparing change summaries, and restoring/);
+  assert.match(generationPrompt, /same-origin rewrites/);
+  assert.match(generationPrompt, /clean relative URLs such as \/api\/<handler>/);
+  assert.match(generationPrompt, /require custom routing\/build configuration beyond the generated files/);
+  assert.match(generationPrompt, /app\.metadata\.json release manifest/);
+  assert.match(generationPrompt, /metadata comment to public\/index\.html and backend entry files/);
 });
 
 test('uses a supplied AppSpec directly without making a separate spec request', async () => {
@@ -405,7 +446,7 @@ test('backend route rejects invalid messages and reports missing Gemini configur
 
 test('chat message schema restricts anonymous users to validated inserts', async () => {
   const schema = await readFile(new URL('../supabase/schema.sql', import.meta.url), 'utf8');
-  assert.match(schema, /create table if not exists public\.chat_messages/);
+  assert.match(schema, /create table if not exists public\.chat_messages/i);
   assert.match(schema, /enable row level security/i);
   assert.match(schema, /revoke all on table public\.chat_messages from public, anon, authenticated/i);
   assert.match(schema, /grant insert on table public\.chat_messages to anon/i);

@@ -22,3 +22,4 @@ training/weights/
 data/*/labels.cache
 .vercel
 .env*
+.prompt2app/
