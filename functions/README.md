@@ -23,7 +23,7 @@ Generate and write files from the repository root:
 npm --prefix functions run write -- "Build a simple task list"
 ```
 
-The writer routes browser assets to root `public/` (or preserves explicit `src/` paths), server handlers to root `api/`, and database DDL to `supabase/`. It validates all content, refuses existing target paths, and writes every generated file with mode `644`.
+The writer routes browser assets to root `public/` (or preserves explicit `src/` paths), server handlers to root `api/`, and database DDL to `supabase/`. It validates all content, refuses existing target paths by default, and writes every generated file with mode `644`. The local `npm run write` command explicitly approves atomic replacement of files included in that generation; unrelated existing files remain untouched.
 
 For a fresh generation when frontend files already exist, pass `--backend-only` to write only newly generated API files whose basename starts with `backend-`:
 

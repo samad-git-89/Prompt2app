@@ -178,6 +178,58 @@ test('integration target selection leaves unrelated generated destinations untou
   }
 });
 
+test('local generation safely replaces generated files and preserves 644 permissions', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'prompt2app-writer-'));
+  const files = [
+    { path: 'index.html', content: '<main>Updated UI</main>\n' },
+    { path: 'style.css', content: 'body { color: white; }\n' },
+    { path: 'script.js', content: 'export const ready = true;\n' },
+    { path: 'backend-api.js', content: 'export function handleRequest() { return "updated"; }\n' },
+    { path: 'supabase/schema.sql', content: schema },
+  ];
+  try {
+    await mkdir(join(root, 'public'), { recursive: true });
+    await mkdir(join(root, 'api'), { recursive: true });
+    await mkdir(join(root, 'supabase'), { recursive: true });
+    await writeFile(join(root, 'public', 'index.html'), '<main>Old UI</main>\n');
+    await writeFile(join(root, 'public', 'style.css'), 'body { color: black; }\n');
+    await writeFile(join(root, 'api', 'backend-api.js'), 'export function oldHandler() {}\n');
+    await writeFile(join(root, 'supabase', 'schema.sql'), 'old schema\n');
+    await writeFile(join(root, 'public', 'keep.txt'), 'preserve this file\n');
+
+    const fetchImpl = async () => new Response(JSON.stringify({
+      candidates: [{
+        content: { parts: [{ functionCall: { name: 'generate_app_files', args: { files } } }] },
+      }],
+    }));
+    const { written } = await runAndWrite('Update the app', {
+      apiKey: 'test-key',
+      appSpec: {
+        name: 'Test UI',
+        description: 'Overwrite integration test',
+        auth: 'none',
+        pages: [{ route: '/', purpose: 'Render UI', components: ['button'] }],
+        data_models: [],
+      },
+      fetchImpl,
+      repoRoot: root,
+      overwriteGeneratedFiles: true,
+    });
+
+    assert.equal(written.length, files.length);
+    assert.equal(await readFile(join(root, 'public', 'index.html'), 'utf8'), files[0].content);
+    assert.equal(await readFile(join(root, 'public', 'style.css'), 'utf8'), files[1].content);
+    assert.equal(await readFile(join(root, 'api', 'backend-api.js'), 'utf8'), files[3].content);
+    assert.equal(await readFile(join(root, 'supabase', 'schema.sql'), 'utf8'), schema);
+    assert.equal(await readFile(join(root, 'public', 'keep.txt'), 'utf8'), 'preserve this file\n');
+    for (const target of ['public/index.html', 'public/style.css', 'api/backend-api.js', 'supabase/schema.sql']) {
+      assert.equal((await stat(join(root, target))).mode & 0o777, 0o644);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('backend-only mode adds backend scripts without touching existing frontend files', async () => {
   const root = await mkdtemp(join(tmpdir(), 'prompt2app-writer-'));
   try {

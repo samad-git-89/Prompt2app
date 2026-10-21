@@ -270,6 +270,7 @@ export async function runAndWrite(
     requiredTargets = [],
     writeTargets = [],
     overwriteTargets = [],
+    overwriteGeneratedFiles = false,
     ...pipelineOptions
   } = {},
 ) {
@@ -281,6 +282,9 @@ export async function runAndWrite(
   }
   if (!Array.isArray(writeTargets) || writeTargets.some((target) => typeof target !== 'string')) {
     throw new TypeError('writeTargets must be an array of target paths');
+  }
+  if (typeof overwriteGeneratedFiles !== 'boolean') {
+    throw new TypeError('overwriteGeneratedFiles must be a boolean');
   }
   const routedPrompt = [
     prompt,
@@ -317,12 +321,18 @@ export async function runAndWrite(
       return { path, content };
     })
     : result.files;
+  const approvedOverwriteTargets = overwriteGeneratedFiles
+    ? [...new Set([
+      ...overwriteTargets,
+      ...routeGeneratedFiles(filesToWrite).map(({ target }) => target),
+    ])]
+    : overwriteTargets;
   return {
     result,
     written: await writeGeneratedFiles(filesToWrite, {
       repoRoot,
       backendOnly: writeMode === 'backend-only',
-      overwriteTargets,
+      overwriteTargets: approvedOverwriteTargets,
     }),
   };
 }
@@ -334,7 +344,10 @@ async function main() {
   const prompt = args.join(' ').trim();
   if (!prompt) throw new Error('Usage: node functions/file-writer.js "Describe the app to generate"');
 
-  const { result, written } = await runAndWrite(prompt, { writeMode });
+  const { result, written } = await runAndWrite(prompt, {
+    writeMode,
+    overwriteGeneratedFiles: true,
+  });
   console.log(JSON.stringify({
     specName: result.spec.name,
     repairAttempts: result.repairAttempts,
