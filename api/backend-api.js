@@ -21,26 +21,24 @@ function hasDetailedComponentSpecification(message) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', ['POST']);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
-    return;
-  }
-
-  const message = req.body?.message;
-  if (typeof message !== 'string' || message.trim().length === 0 || message.length > 4000) {
-    res.status(400).json({ error: 'Message must contain between 1 and 4000 characters.' });
-    return;
-  }
-
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.error('GEMINI_API_KEY is not configured for the backend.');
-    res.status(500).json({ error: 'AI service is not configured.' });
-    return;
-  }
-
   try {
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', ['POST']);
+      res.status(405).json({ error: `Method ${req.method} Not Allowed` });
+      return;
+    }
+
+    const message = req.body?.message;
+    if (typeof message !== 'string' || message.trim().length === 0 || message.length > 4000) {
+      res.status(400).json({ error: 'Message must contain between 1 and 4000 characters.' });
+      return;
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error('GEMINI_API_KEY is not configured for the backend.');
+    }
+
     if (req.body?.appSpec !== undefined || hasDetailedComponentSpecification(message)) {
       const result = await runPipeline({
         prompt: message.trim(),
@@ -94,9 +92,7 @@ export default async function handler(req, res) {
     );
 
     if (!googleResponse.ok) {
-      console.error(`Gemini API request failed with status ${googleResponse.status}.`);
-      res.status(502).json({ error: 'AI service could not process the request.' });
-      return;
+      throw new Error(`Gemini API request failed with status ${googleResponse.status}.`);
     }
 
     const data = await googleResponse.json();
@@ -111,6 +107,8 @@ export default async function handler(req, res) {
     res.status(200).json({ response });
   } catch (error) {
     console.error('Backend AI request failed:', error);
-    res.status(502).json({ error: 'AI service could not process the request.' });
+    res.status(500).json({
+      response: 'The serverless proxy encountered an error connecting to the generative AI engine. Please verify your environment variable configs.',
+    });
   }
 }

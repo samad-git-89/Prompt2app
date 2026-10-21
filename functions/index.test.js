@@ -510,8 +510,41 @@ test('backend route rejects invalid messages and reports missing Gemini configur
     const missingKeyResponse = makeResponse();
     await backendApi({ method: 'POST', body: { message: 'Hello' } }, missingKeyResponse);
     assert.equal(missingKeyResponse.statusCode, 500);
-    assert.deepEqual(missingKeyResponse.body, { error: 'AI service is not configured.' });
+    assert.deepEqual(missingKeyResponse.body, {
+      response: 'The serverless proxy encountered an error connecting to the generative AI engine. Please verify your environment variable configs.',
+    });
   } finally {
+    if (previousApiKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousApiKey;
+  }
+});
+
+test('backend route returns structured JSON when the Gemini connection fails', async () => {
+  const previousApiKey = process.env.GEMINI_API_KEY;
+  const previousFetch = globalThis.fetch;
+  process.env.GEMINI_API_KEY = 'test-gemini-key';
+  globalThis.fetch = async () => {
+    throw new Error('Connection refused');
+  };
+  const response = {
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    },
+  };
+
+  try {
+    await backendApi({ method: 'POST', body: { message: 'Hello' } }, response);
+    assert.equal(response.statusCode, 500);
+    assert.deepEqual(response.body, {
+      response: 'The serverless proxy encountered an error connecting to the generative AI engine. Please verify your environment variable configs.',
+    });
+  } finally {
+    globalThis.fetch = previousFetch;
     if (previousApiKey === undefined) delete process.env.GEMINI_API_KEY;
     else process.env.GEMINI_API_KEY = previousApiKey;
   }
