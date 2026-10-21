@@ -3,59 +3,510 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Premium Cooking App</title>
-    <link rel="stylesheet" href="/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <meta name="theme-color" content="#0b0f19">
+    <meta name="description" content="Turn your next idea into a polished web app with prompt2app.">
+    <title>prompt2app — Build your next idea</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            color-scheme: dark;
+            font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+            color: #f4f6fc;
+            background: #0b0f19;
+            font-synthesis: none;
+            text-rendering: optimizeLegibility;
+            --muted: #929bad;
+            --line: rgba(174, 190, 220, 0.12);
+            --panel: rgba(20, 27, 42, 0.82);
+            --panel-raised: #151d2d;
+            --violet: #a5b4fc;
+            --blue: #38bdf8;
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            min-width: 320px;
+            min-height: 100vh;
+            margin: 0;
+            background:
+                radial-gradient(ellipse at 50% 15%, rgba(53, 77, 142, 0.2), transparent 43rem),
+                radial-gradient(ellipse at 100% 85%, rgba(24, 91, 131, 0.1), transparent 38rem),
+                #0b0f19;
+        }
+        button, input { font: inherit; }
+        button, a { -webkit-tap-highlight-color: transparent; }
+        button:focus-visible, a:focus-visible, input:focus-visible {
+            outline: 2px solid var(--blue);
+            outline-offset: 3px;
+        }
+        .app-shell { min-height: 100vh; }
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1.5rem;
+            min-height: 76px;
+            padding: 0 clamp(1.25rem, 5vw, 5rem);
+            border-bottom: 1px solid rgba(174, 190, 220, 0.08);
+            background: rgba(11, 15, 25, 0.7);
+            backdrop-filter: blur(18px);
+        }
+        .brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.7rem;
+            color: #f4f6fc;
+            text-decoration: none;
+            font-family: Manrope, sans-serif;
+            font-size: 1.08rem;
+            font-weight: 800;
+            letter-spacing: -0.04em;
+        }
+        .brand-mark {
+            display: grid;
+            width: 31px;
+            height: 31px;
+            place-items: center;
+            border: 1px solid rgba(165, 180, 252, 0.34);
+            border-radius: 10px;
+            background: linear-gradient(145deg, rgba(165, 180, 252, 0.24), rgba(56, 189, 248, 0.12));
+            color: #c4d0ff;
+            font-size: 0.9rem;
+        }
+        .top-nav { display: flex; align-items: center; gap: clamp(1rem, 3vw, 2.25rem); }
+        .top-nav a {
+            color: #aab3c5;
+            text-decoration: none;
+            font-size: 0.88rem;
+            transition: color 180ms ease;
+        }
+        .top-nav a:hover { color: #fff; }
+        .top-nav .status-link { display: inline-flex; align-items: center; gap: 0.5rem; }
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #4ade80;
+            box-shadow: 0 0 12px rgba(74, 222, 128, 0.65);
+        }
+        .main-content {
+            width: min(100% - 2rem, 1080px);
+            margin: 0 auto;
+            padding: clamp(4rem, 10vh, 7.5rem) 0 4rem;
+        }
+        .hero { max-width: 780px; margin: 0 auto 2.75rem; text-align: center; }
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.55rem;
+            margin: 0 0 1.4rem;
+            padding: 0.48rem 0.78rem;
+            border: 1px solid rgba(165, 180, 252, 0.2);
+            border-radius: 999px;
+            background: rgba(165, 180, 252, 0.07);
+            color: #c4ceff;
+            font-size: 0.76rem;
+            font-weight: 600;
+            letter-spacing: 0.045em;
+        }
+        .eyebrow-icon { color: var(--blue); }
+        h1, h2, p { margin-top: 0; }
+        h1 {
+            margin-bottom: 1.15rem;
+            font-family: Manrope, sans-serif;
+            font-size: clamp(2.8rem, 7vw, 5.4rem);
+            font-weight: 700;
+            letter-spacing: -0.075em;
+            line-height: 1.03;
+        }
+        .headline-accent {
+            background: linear-gradient(100deg, #a5b4fc 12%, #8bd5ff 86%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .hero-copy {
+            max-width: 590px;
+            margin: 0 auto;
+            color: #a1aabd;
+            font-size: clamp(1rem, 2vw, 1.12rem);
+            line-height: 1.75;
+        }
+        .workspace {
+            position: relative;
+            max-width: 820px;
+            margin: 0 auto;
+            padding: clamp(1rem, 3vw, 1.55rem);
+            border: 1px solid rgba(174, 190, 220, 0.16);
+            border-radius: 24px;
+            background:
+                linear-gradient(145deg, rgba(25, 34, 53, 0.96), rgba(15, 21, 34, 0.96));
+            box-shadow: 0 32px 100px rgba(0, 0, 0, 0.42), 0 0 70px rgba(88, 110, 197, 0.08);
+        }
+        .workspace::before {
+            position: absolute;
+            z-index: -1;
+            inset: -1px;
+            border-radius: inherit;
+            background: linear-gradient(125deg, rgba(165, 180, 252, 0.18), transparent 32%, rgba(56, 189, 248, 0.1));
+            content: "";
+            filter: blur(22px);
+        }
+        .workspace-topline {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 1.2rem;
+        }
+        .workspace-label {
+            margin: 0;
+            color: #e2e8f4;
+            font-size: 0.86rem;
+            font-weight: 600;
+        }
+        .workspace-hint { color: #808ba0; font-size: 0.76rem; }
+        .category-tags { display: flex; flex-wrap: wrap; gap: 0.55rem; margin-bottom: 1rem; }
+        .category-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            min-height: 36px;
+            padding: 0.45rem 0.82rem;
+            border: 1px solid rgba(174, 190, 220, 0.14);
+            border-radius: 999px;
+            background: rgba(10, 15, 25, 0.42);
+            color: #a9b3c6;
+            cursor: pointer;
+            font-size: 0.81rem;
+            transition: background 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms ease;
+        }
+        .category-tag:hover { transform: translateY(-1px); border-color: rgba(165, 180, 252, 0.4); color: #fff; }
+        .category-tag[aria-pressed="true"] {
+            border-color: rgba(165, 180, 252, 0.45);
+            background: rgba(165, 180, 252, 0.12);
+            color: #d7ddff;
+        }
+        .category-icon { color: var(--violet); font-size: 0.84rem; }
+        .composer {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            min-height: 78px;
+            padding: 0.8rem 0.85rem 0.8rem 1.15rem;
+            border: 1px solid rgba(174, 190, 220, 0.14);
+            border-radius: 16px;
+            background: rgba(8, 12, 21, 0.68);
+            transition: border-color 180ms ease, box-shadow 180ms ease;
+        }
+        .composer:focus-within {
+            border-color: rgba(165, 180, 252, 0.55);
+            box-shadow: 0 0 0 4px rgba(165, 180, 252, 0.08);
+        }
+        .composer input {
+            flex: 1;
+            min-width: 0;
+            padding: 0.65rem 0;
+            border: 0;
+            outline: none;
+            background: transparent;
+            color: #f4f6fc;
+            font-size: 0.98rem;
+        }
+        .composer input::placeholder { color: #788398; }
+        .composer input:focus-visible { outline: none; }
+        .send-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.55rem;
+            min-height: 48px;
+            padding: 0.75rem 1.15rem;
+            border: 1px solid rgba(207, 216, 255, 0.26);
+            border-radius: 12px;
+            background: linear-gradient(125deg, #a5b4fc, #82cfff);
+            color: #0c1120;
+            cursor: pointer;
+            font-size: 0.87rem;
+            font-weight: 700;
+            transition: filter 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+        }
+        .send-button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            filter: brightness(1.08);
+            box-shadow: 0 8px 24px rgba(105, 153, 255, 0.24);
+        }
+        .send-button:disabled { cursor: wait; opacity: 0.7; }
+        .send-arrow { font-size: 1.05rem; }
+        .composer-footer {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-top: 0.8rem;
+            color: #748096;
+            font-size: 0.73rem;
+        }
+        .prompt-examples {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.85rem;
+            max-width: 820px;
+            margin: 1rem auto 2rem;
+        }
+        .example-card {
+            min-height: 104px;
+            padding: 1rem;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: rgba(17, 24, 38, 0.58);
+            color: #c3cada;
+            cursor: pointer;
+            text-align: left;
+            transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+        }
+        .example-card:hover {
+            transform: translateY(-3px);
+            border-color: rgba(165, 180, 252, 0.35);
+            background: rgba(24, 34, 53, 0.86);
+        }
+        .example-type {
+            display: block;
+            margin-bottom: 0.55rem;
+            color: var(--blue);
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+        }
+        .example-text { font-size: 0.82rem; line-height: 1.45; }
+        .chat-feed {
+            display: none;
+            flex-direction: column;
+            gap: 0.85rem;
+            max-width: 820px;
+            max-height: 360px;
+            margin: 1.5rem auto 0;
+            overflow-y: auto;
+            padding: 0.25rem 0.15rem;
+        }
+        .chat-feed.has-messages { display: flex; }
+        .message-row { display: flex; }
+        .user-message-row { justify-content: flex-end; }
+        .ai-bubble, .user-bubble {
+            max-width: min(85%, 680px);
+            padding: 0.85rem 1rem;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            color: #e7ebf5;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            overflow-wrap: anywhere;
+            white-space: pre-wrap;
+        }
+        .ai-bubble { border-top-left-radius: 4px; background: var(--panel-raised); }
+        .user-bubble {
+            border-color: rgba(165, 180, 252, 0.18);
+            border-top-right-radius: 4px;
+            background: rgba(75, 91, 154, 0.32);
+        }
+        .page-footnote { margin: 2.25rem 0 0; color: #687489; font-size: 0.76rem; text-align: center; }
+        .page-footnote span { color: #91a0bd; }
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+        @media (max-width: 680px) {
+            .topbar { min-height: 66px; padding-inline: 1rem; }
+            .top-nav { gap: 1rem; }
+            .top-nav a { font-size: 0.8rem; }
+            .main-content { width: min(100% - 1.25rem, 600px); padding-top: 4rem; }
+            .hero { margin-bottom: 2rem; }
+            .workspace { border-radius: 19px; }
+            .prompt-examples { grid-template-columns: 1fr; }
+            .example-card { min-height: 78px; }
+        }
+        @media (max-width: 430px) {
+            .top-nav a:not(.status-link) { display: none; }
+            .workspace-topline { align-items: flex-start; flex-direction: column; gap: 0.25rem; }
+            .composer { align-items: stretch; flex-direction: column; padding: 0.85rem; }
+            .composer input { min-height: 44px; padding-inline: 0.2rem; }
+            .send-button { width: 100%; }
+            .composer-footer { flex-direction: column; gap: 0.3rem; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+        }
+    </style>
 </head>
 <body>
-    <div class="app-container">
-        <header class="app-header">
-            <div class="header-content">
-                <h1 class="header text-block app-title">FlavorFusion</h1>
-                <nav class="main-nav">
-                    <a href="#" class="nav-item">Recipes</a>
-                    <a href="#" class="nav-item">Categories</a>
-                    <a href="#" class="nav-item">About Us</a>
-                </nav>
-            </div>
+    <div class="app-shell">
+        <header class="topbar">
+            <a class="brand" href="/" aria-label="prompt2app home">
+                <span class="brand-mark" aria-hidden="true">✦</span>
+                <span>prompt2app</span>
+            </a>
+            <nav class="top-nav" aria-label="Main navigation">
+                <a href="#examples">Explore ideas</a>
+                <a href="#workspace">How it works</a>
+                <a class="status-link" href="#workspace"><span class="status-dot" aria-hidden="true"></span>AI workspace</a>
+            </nav>
         </header>
 
         <main class="main-content">
-            <section class="hero-banner">
-                <div class="hero-overlay"></div>
-                <div class="hero-content">
-                    <div class="text-block hero-title">Discover Culinary Delights</div>
-                    <p class="text-block hero-description">Unlock a world of exquisite recipes and elevate your cooking experience with FlavorFusion.</p>
-                    <button class="button primary-button">Start Cooking</button>
+            <section class="hero" aria-labelledby="hero-title">
+                <p class="eyebrow"><span class="eyebrow-icon" aria-hidden="true">✦</span> YOUR NEXT BIG IDEA STARTS HERE</p>
+                <h1 id="hero-title">What are we <span class="headline-accent">building?</span></h1>
+                <p class="hero-copy">Bring your idea to life. Describe what you have in mind and shape it into a thoughtful product, one step at a time.</p>
+            </section>
+
+            <section class="workspace" id="workspace" aria-label="App idea workspace">
+                <div class="workspace-topline">
+                    <p class="workspace-label">Start with an idea</p>
+                    <span class="workspace-hint">Choose a direction, then tell us what you need</span>
                 </div>
-                <div class="image-container hero-image-container">
-                    <img src="https://images.unsplash.com/photo-1606787366850-de6330128bfc?q=80&w=2940&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" alt="Delicious food spread" class="hero-img">
+                <div class="category-tags" role="group" aria-label="Product type">
+                    <button class="category-tag" type="button" data-category="Site" aria-pressed="false"><span class="category-icon" aria-hidden="true">◫</span> Site</button>
+                    <button class="category-tag" type="button" data-category="SaaS" aria-pressed="true"><span class="category-icon" aria-hidden="true">▦</span> SaaS</button>
+                    <button class="category-tag" type="button" data-category="API" aria-pressed="false"><span class="category-icon" aria-hidden="true">⌘</span> API</button>
+                </div>
+                <form class="composer" id="chat-composer">
+                    <label class="sr-only" for="chat-input">Describe the product you want to build</label>
+                    <input type="text" id="chat-input" name="message" maxlength="4000" placeholder="A project tracker for a small creative team..." autocomplete="off" required>
+                    <button class="send-button" id="send-btn" type="submit"><span>Start building</span><span class="send-arrow" aria-hidden="true">↗</span></button>
+                </form>
+                <div class="composer-footer">
+                    <span>Press Enter to continue</span>
+                    <span>Thoughtful ideas become better products</span>
                 </div>
             </section>
 
-            <section class="workspace-section">
-                <h2 class="section-title text-block">Explore Recipes</h2>
-
-                <div class="controls-bar">
-                    <div class="category-tags">
-                        <button class="button category-tag active" data-category="All">All</button>
-                        <button class="button category-tag" data-category="Breakfast">Breakfast</button>
-                        <button class="button category-tag" data-category="Lunch">Lunch</button>
-                        <button class="button category-tag" data-category="Dinner">Dinner</button>
-                        <button class="button category-tag" data-category="Dessert">Dessert</button>
-                    </div>
-                    <div class="search-input-container">
-                        <input type="text" id="recipe-search-input" class="input search-input" placeholder="Search recipes...">
-                    </div>
-                </div>
-
-                <div class="recipe-grid" id="recipe-grid">
-                    <!-- Recipe cards will be dynamically loaded here -->
-                </div>
+            <section class="prompt-examples" id="examples" aria-label="Ideas to get started">
+                <button class="example-card" type="button" data-category="Site" data-prompt="A clean portfolio site for an independent photographer, with a gallery and contact form.">
+                    <span class="example-type">Site · Portfolio</span>
+                    <span class="example-text">A photography portfolio with a beautiful gallery</span>
+                </button>
+                <button class="example-card" type="button" data-category="SaaS" data-prompt="A simple SaaS dashboard to track projects, tasks, and progress for a small team.">
+                    <span class="example-type">SaaS · Productivity</span>
+                    <span class="example-text">A calm, focused project dashboard for a small team</span>
+                </button>
+                <button class="example-card" type="button" data-category="API" data-prompt="An API service for managing a reading list, with endpoints to add, update, and search books.">
+                    <span class="example-type">API · Developer tools</span>
+                    <span class="example-text">A reading-list API with search and simple management</span>
+                </button>
             </section>
+
+            <section class="chat-feed" id="chat-feed" aria-label="Conversation" aria-live="polite"></section>
+            <p class="page-footnote">Made for the moment when an idea becomes <span>something real.</span></p>
         </main>
     </div>
-    <script src="/script.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const SUPABASE_URL = "https://dlnsgydsevubdbsfpipg.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_PHJsJon2xr4yeXPWxBBaIg_76jD8Op-";
+        let dbClient;
+        try {
+            if (!window.supabase?.createClient) {
+                throw new Error('Supabase client library did not load.');
+            }
+            dbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        } catch (error) {
+            console.error('Failed to initialize Supabase client:', error);
+        }
+
+        const chatFeed = document.getElementById('chat-feed');
+        const chatComposer = document.getElementById('chat-composer');
+        const chatInput = document.getElementById('chat-input');
+        const sendButton = document.getElementById('send-btn');
+        let selectedCategory = 'SaaS';
+
+        function addMessageToFeed(content, isUser) {
+            const row = document.createElement('div');
+            row.classList.add('message-row', isUser ? 'user-message-row' : 'ai-message-row');
+            const bubble = document.createElement('div');
+            bubble.classList.add(isUser ? 'user-bubble' : 'ai-bubble');
+            bubble.textContent = content;
+            row.appendChild(bubble);
+            chatFeed.appendChild(row);
+            chatFeed.classList.add('has-messages');
+            chatFeed.scrollTop = chatFeed.scrollHeight;
+            return bubble;
+        }
+
+        async function saveUserMessage(message) {
+            if (!dbClient) {
+                console.error('Supabase client is unavailable; chat message was not saved.');
+                return;
+            }
+            try {
+                const { error } = await dbClient.from('chat_messages').insert({ content: message });
+                if (error) throw error;
+            } catch (error) {
+                console.error('Failed to save chat message to Supabase:', error);
+            }
+        }
+
+        async function sendMessage() {
+            const message = chatInput.value.trim();
+            if (!message || sendButton.disabled) return;
+            addMessageToFeed(message, true);
+            void saveUserMessage(message);
+            const responseBubble = addMessageToFeed('Thinking through your idea…', false);
+            chatInput.value = '';
+            sendButton.disabled = true;
+            try {
+                const response = await fetch('/api/backend-api', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: `${selectedCategory} idea: ${message}` }),
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || `Request failed (${response.status}).`);
+                if (typeof data.response !== 'string' || data.response.length === 0) {
+                    throw new Error('The assistant returned an empty response.');
+                }
+                responseBubble.textContent = data.response;
+            } catch (error) {
+                console.error('Error sending message to assistant:', error);
+                responseBubble.textContent = `Sorry, I couldn't get a response just now. ${error.message}`;
+            } finally {
+                sendButton.disabled = false;
+                chatInput.focus();
+                chatFeed.scrollTop = chatFeed.scrollHeight;
+            }
+        }
+
+        document.querySelectorAll('.category-tag').forEach((button) => {
+            button.addEventListener('click', () => {
+                selectedCategory = button.dataset.category;
+                document.querySelectorAll('.category-tag').forEach((tag) => {
+                    tag.setAttribute('aria-pressed', String(tag === button));
+                });
+            });
+        });
+
+        document.querySelectorAll('.example-card').forEach((button) => {
+            button.addEventListener('click', () => {
+                document.querySelector(`.category-tag[data-category="${button.dataset.category}"]`)?.click();
+                chatInput.value = button.dataset.prompt;
+                chatInput.focus();
+                document.getElementById('workspace').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+        });
+
+        chatComposer.addEventListener('submit', (event) => {
+            event.preventDefault();
+            void sendMessage();
+        });
+    </script>
 </body>
 </html>

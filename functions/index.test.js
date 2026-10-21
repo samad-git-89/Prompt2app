@@ -245,10 +245,19 @@ test('UI service falls back to valid Supabase alias variables when primary value
 
 test('public page sends chat messages to the same-origin backend route', async () => {
   const html = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
+  assert.match(html, /What are we <span class="headline-accent">building\?<\/span>/);
+  assert.match(html, /prompt2app/);
+  assert.match(html, /data-category="Site"/);
+  assert.match(html, /data-category="SaaS"/);
+  assert.match(html, /data-category="API"/);
+  assert.match(html, /data-prompt=/);
+  assert.match(html, /data-category="Site" data-prompt=/);
+  assert.match(html, /category-tag\[data-category="\$\{button\.dataset\.category\}"\]/);
+  assert.doesNotMatch(html, /ChatBuilder|Welcome to ChatBuilder|prototype of the Chat-Builder Zoho UI/);
   assert.match(html, /fetch\(['"]\/api\/backend-api['"]/);
   assert.match(html, /method:\s*'POST'/);
   assert.doesNotMatch(html, /mode:\s*['"]cors['"]/);
-  assert.match(html, /body:\s*JSON\.stringify\(\{\s*message\s*\}\)/);
+  assert.match(html, /body:\s*JSON\.stringify\(\{\s*message:\s*`\$\{selectedCategory\} idea: \$\{message\}`\s*\}\)/);
   assert.doesNotMatch(html, /fetch\(['"]\/api\/ui-service\.js['"]/);
   assert.doesNotMatch(html, /effective-space-orbit-jj4q4pwgw9wrf4gq-5001\.app\.github\.dev/);
   assert.match(html, /const SUPABASE_URL = "https:\/\/dlnsgydsevubdbsfpipg\.supabase\.co"/);
@@ -257,18 +266,15 @@ test('public page sends chat messages to the same-origin backend route', async (
   assert.match(html, /let dbClient;/);
   assert.match(html, /dbClient = window\.supabase\.createClient\(SUPABASE_URL, SUPABASE_ANON_KEY\)/);
   assert.match(html, /responseBubble\.textContent = data\.response/);
-  assert.match(html, /responseBubble\.textContent = `Error: \$\{error\.message\}`/);
+  assert.match(html, /responseBubble\.textContent = `Sorry, I couldn't get a response just now\. \$\{error\.message\}`/);
   assert.match(html, /from\('chat_messages'\)[\s\S]*?insert\(\{\s*content:\s*message\s*\}\)/);
   assert.match(html, /void saveUserMessage\(message\)/);
   assert.match(html, /id="chat-input"/);
   assert.match(html, /getElementById\('chat-input'\)/);
   assert.match(html, /id="send-btn"/);
   assert.match(html, /getElementById\('send-btn'\)/);
-  assert.match(html, /sendButton\.addEventListener\('click', handleSendClick\)/);
-  assert.match(html, /chatInput\.addEventListener\('keydown'/);
-  assert.match(html, /e\.key === 'Enter'[\s\S]*?sendButton\.click\(\)/);
-  assert.match(html, /console\.log\('User submitted message:', message\)/);
   assert.match(html, /chatComposer\.addEventListener\('submit'/);
+  assert.match(html, /event\.preventDefault\(\);\s*void sendMessage\(\)/);
   assert.doesNotMatch(html, /\blet supabase\b|\bsupabase\.auth/);
   assert.doesNotMatch(html, /YOUR_SUPABASE_(?:URL|ANON_KEY)/);
 });
