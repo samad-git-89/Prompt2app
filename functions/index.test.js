@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { generatePostgresSchema, runPipeline, validateAppSpec, validateGeneratedFiles } from './index.js';
+import backendApi from '../api/backend-api.js';
 import uiService from '../api/ui-service.js';
 
 const validSpec = {
@@ -78,7 +79,7 @@ test('repairs invalid generated files and returns a validated result', async () 
     assert.match(systemInstruction, /Never expose secret or service-role keys/);
   }
   assert.match(calls[2].body.contents[0].parts[0].text, /Validation errors to fix/);
-  assert.match(calls[1].body.contents[0].parts[0].text, /\/api\/backend-api\.js/);
+  assert.match(calls[1].body.contents[0].parts[0].text, /\/api\/backend-api/);
   const generationPrompt = calls[1].body.contents[0].parts[0].text;
   assert.match(generationPrompt, /const SUPABASE_URL = "https:\/\/dlnsgydsevubdbsfpipg\.supabase\.co"/);
   assert.match(generationPrompt, /const SUPABASE_ANON_KEY = "sb_publishable_PHJsJon2xr4yeXPWxBBaIg_76jD8Op-"/);
@@ -219,7 +220,7 @@ test('UI service falls back to valid Supabase alias variables when primary value
 
 test('public page sends chat messages to the same-origin backend route', async () => {
   const html = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
-  assert.match(html, /fetch\(['"]\/api\/backend-api\.js['"]/);
+  assert.match(html, /fetch\(['"]\/api\/backend-api['"]/);
   assert.match(html, /method:\s*'POST'/);
   assert.doesNotMatch(html, /mode:\s*['"]cors['"]/);
   assert.match(html, /body:\s*JSON\.stringify\(\{\s*message\s*\}\)/);
@@ -231,6 +232,9 @@ test('public page sends chat messages to the same-origin backend route', async (
   assert.match(html, /let dbClient;/);
   assert.match(html, /dbClient = window\.supabase\.createClient\(SUPABASE_URL, SUPABASE_ANON_KEY\)/);
   assert.match(html, /responseBubble\.textContent = data\.response/);
+  assert.match(html, /responseBubble\.textContent = `Error: \$\{error\.message\}`/);
+  assert.match(html, /from\('chat_messages'\)[\s\S]*?insert\(\{\s*content:\s*message\s*\}\)/);
+  assert.match(html, /void saveUserMessage\(message\)/);
   assert.match(html, /id="chat-input"/);
   assert.match(html, /getElementById\('chat-input'\)/);
   assert.match(html, /id="send-btn"/);
@@ -242,6 +246,77 @@ test('public page sends chat messages to the same-origin backend route', async (
   assert.match(html, /chatComposer\.addEventListener\('submit'/);
   assert.doesNotMatch(html, /\blet supabase\b|\bsupabase\.auth/);
   assert.doesNotMatch(html, /YOUR_SUPABASE_(?:URL|ANON_KEY)/);
+});
+
+test('backend route sends chat requests to Gemini using a server-side key', async () => {
+  const previousApiKey = process.env.GEMINI_API_KEY;
+  const previousFetch = globalThis.fetch;
+  process.env.GEMINI_API_KEY = 'test-gemini-key';
+  let request;
+  globalThis.fetch = async (url, options) => {
+    request = { url: String(url), headers: options.headers, body: JSON.parse(options.body) };
+    return new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ text: 'Structured response' }] } }],
+    }), { headers: { 'content-type': 'application/json' } });
+  };
+
+  const response = {
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    },
+  };
+
+  try {
+    await backendApi({ method: 'POST', body: { message: 'Build a dashboard' } }, response);
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.body, { response: 'Structured response' });
+    assert.equal(request.url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent');
+    assert.equal(request.headers['x-goog-api-key'], 'test-gemini-key');
+    assert.equal(request.body.contents[0].parts[0].text, 'Build a dashboard');
+    assert.match(request.body.systemInstruction.parts[0].text, /elite full-stack AppSpec engineer/);
+    assert.equal(request.body.generationConfig.maxOutputTokens, 1024);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousApiKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousApiKey;
+  }
+});
+
+test('backend route rejects invalid messages and reports missing Gemini configuration', async () => {
+  const previousApiKey = process.env.GEMINI_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+
+  function makeResponse() {
+    return {
+      status(code) {
+        this.statusCode = code;
+        return this;
+      },
+      json(body) {
+        this.body = body;
+        return this;
+      },
+    };
+  }
+
+  try {
+    const invalidResponse = makeResponse();
+    await backendApi({ method: 'POST', body: { message: '  ' } }, invalidResponse);
+    assert.equal(invalidResponse.statusCode, 400);
+
+    const missingKeyResponse = makeResponse();
+    await backendApi({ method: 'POST', body: { message: 'Hello' } }, missingKeyResponse);
+    assert.equal(missingKeyResponse.statusCode, 500);
+    assert.deepEqual(missingKeyResponse.body, { error: 'AI service is not configured.' });
+  } finally {
+    if (previousApiKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousApiKey;
+  }
 });
 
 test('chat message schema restricts anonymous users to validated inserts', async () => {

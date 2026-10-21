@@ -200,7 +200,7 @@ export async function runPipeline({
       'Return a JSON object with exactly this shape: {"files":[{"path":"relative/path","content":"file contents"}]}.',
       'For every AppSpec data model, include PostgreSQL DDL in supabase/schema.sql and use the Supabase JavaScript client for database access.',
       'Initialize Supabase directly in the browser for Supabase-backed UI components: define const SUPABASE_URL = "https://dlnsgydsevubdbsfpipg.supabase.co" and const SUPABASE_ANON_KEY = "sb_publishable_PHJsJon2xr4yeXPWxBBaIg_76jD8Op-", then call window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY). Load the Supabase JavaScript client before this code; do not fetch /api/ui-service.js for Supabase configuration, and never expose secret or service-role keys.',
-      'Use the explicit .js backend route /api/backend-api.js for browser requests that require the server-side API.',
+      'Use the same-origin backend route /api/backend-api for browser requests that require the server-side API.',
       'Always build the app page inside a clean dashboard shell with a persistent navigation sidebar and a flexible main-content area; use semantic, clearly separated layout containers rather than a single flat panel.',
       'Place conversational features in a dedicated, interactive chat-feed panel within the main area, with distinct message rows and a composer; do not render chat as an oversized flat blue box.',
       'Author a cohesive, production-quality CSS design system: use dark charcoal or soft neutral slate backgrounds instead of raw solid primary-color fills, clear typographic hierarchy, readable contrast, 8px-or-greater corner radii, subtle professional box-shadows, and all 0.2s ease transitions for interactive states.',

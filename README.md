@@ -31,6 +31,7 @@ prompt -> spec (JSON) -> code generation (file by file) -> validate (lint, build
 
 - Split data by whole app, never by random rows, to avoid leakage.
 - Privileged API keys live only in environment variables or Secret Manager and never reach browser code. The browser may receive the Supabase anon key at runtime; it is public and must be paired with appropriate row-level security. Never commit `.env` or secret keys.
+- Set `GEMINI_API_KEY` as a Vercel project environment variable for Production, Preview, and Development deployments. The `/api/backend-api` serverless route uses it at request time; do not configure it in `vercel.json` or expose it in `public/`.
 - Generated PostgreSQL tables enable row-level security by default.
 - Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in a private local `.env` file. The UI service reads them from the environment and supplies the browser client configuration at runtime.
 

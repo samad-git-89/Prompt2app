@@ -424,27 +424,46 @@
             return messageBubble;
         }
 
+        async function saveUserMessage(message) {
+            if (!dbClient) {
+                console.error('Supabase client is unavailable; chat message was not saved.');
+                return;
+            }
+
+            try {
+                const { error } = await dbClient
+                    .from('chat_messages')
+                    .insert({ content: message });
+                if (error) {
+                    throw error;
+                }
+            } catch (error) {
+                console.error('Failed to save chat message to Supabase:', error);
+            }
+        }
+
         async function sendMessage() {
             const message = chatInput.value.trim();
             if (!message) return;
 
             console.log('User submitted message:', message);
             addMessageToFeed(message, true);
+            void saveUserMessage(message);
             const responseBubble = addMessageToFeed('Connecting...', false);
             chatInput.value = '';
 
             try {
-                const response = await fetch('/api/backend-api.js', {
+                const response = await fetch('/api/backend-api', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ message }),
                 });
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
                 const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || `HTTP error! status: ${response.status}`);
+                }
                 if (typeof data.response !== 'string' || data.response.length === 0) {
                     throw new Error('Backend response did not contain a valid response message.');
                 }
@@ -453,7 +472,7 @@
                 window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
             } catch (error) {
                 console.error('Error sending message to backend:', error);
-                responseBubble.textContent = 'Error: Could not get a response from the backend.';
+                responseBubble.textContent = `Error: ${error.message}`;
             }
         }
 
