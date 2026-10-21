@@ -19,6 +19,12 @@ function jsonResponse(value) {
   return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(value) }] } }] }));
 }
 
+function functionCallResponse(name, args) {
+  return new Response(JSON.stringify({
+    candidates: [{ content: { parts: [{ functionCall: { name, args } }] } }],
+  }));
+}
+
 test('validates AppSpec against the repository schema', () => {
   assert.deepEqual(validateAppSpec(validSpec), []);
   assert.notDeepEqual(validateAppSpec({ name: 'missing required fields' }), []);
@@ -50,8 +56,8 @@ test('repairs invalid generated files and returns a validated result', async () 
   const calls = [];
   const responses = [
     jsonResponse(validSpec),
-    jsonResponse({ files: [{ path: '../unsafe.js', content: 'bad' }] }),
-    jsonResponse({ files: safeFiles }),
+    functionCallResponse('generate_app_files', { files: [{ path: '../unsafe.js', content: 'bad' }] }),
+    functionCallResponse('generate_app_files', { files: safeFiles }),
   ];
 
   const result = await runPipeline({
@@ -70,11 +76,26 @@ test('repairs invalid generated files and returns a validated result', async () 
   assert.equal(calls.length, 3);
   assert.equal(calls[0].url.includes('test-key'), false);
   assert.equal(calls[0].headers['x-goog-api-key'], 'test-key');
+  assert.equal(calls[0].body.tools, undefined);
+  assert.equal(calls[1].body.tools[0].functionDeclarations[0].name, 'generate_app_files');
+  assert.equal(calls[1].body.toolConfig.functionCallingConfig.mode, 'ANY');
+  assert.deepEqual(
+    calls[1].body.tools[0].functionDeclarations[0].parameters.properties.files.items.required,
+    ['path', 'content'],
+  );
   for (const call of calls) {
     const systemInstruction = call.body.systemInstruction.parts[0].text;
-    assert.match(systemInstruction, /elite Full-Stack Code Authoring Engine/);
+    assert.match(systemInstruction, /friendly, professional AI product collaborator/);
     assert.match(systemInstruction, /only a valid JSON object/);
+    assert.match(systemInstruction, /internal machine data/);
+    assert.match(systemInstruction, /never a user-facing chat response/);
+    assert.match(systemInstruction, /Keep user-facing copy natural/);
     assert.match(systemInstruction, /responsive grid and flexbox layouts/);
+    assert.match(systemInstruction, /#0B0F19/);
+    assert.match(systemInstruction, /#a5b4fc and #38bdf8/);
+    assert.match(systemInstruction, /centered hero banner/);
+    assert.match(systemInstruction, /Site, SaaS, and API/);
+    assert.match(systemInstruction, /prefers-reduced-motion/);
     assert.match(systemInstruction, /use a dbClient variable/);
     assert.match(systemInstruction, /Never expose secret or service-role keys/);
   }
@@ -86,6 +107,10 @@ test('repairs invalid generated files and returns a validated result', async () 
   assert.match(generationPrompt, /window\.supabase\.createClient\(SUPABASE_URL, SUPABASE_ANON_KEY\)/);
   assert.match(generationPrompt, /do not fetch \/api\/ui-service\.js for Supabase configuration/);
   assert.match(generationPrompt, /dashboard shell with a persistent navigation sidebar/);
+  assert.match(generationPrompt, /premium dark SaaS aesthetic/);
+  assert.match(generationPrompt, /centered hero banner flowing into a responsive workspace grid/);
+  assert.match(generationPrompt, /category tags named Site, SaaS, and API/);
+  assert.match(generationPrompt, /original, high-quality SaaS compositions/);
   assert.match(generationPrompt, /dedicated, interactive chat-feed panel/);
   assert.match(generationPrompt, /8px-or-greater corner radii.*box-shadows.*0\.2s ease/);
   assert.match(generationPrompt, /fluid flexbox-based layout sizing.*desktop and laptop/);
@@ -100,7 +125,7 @@ test('uses a supplied AppSpec directly without making a separate spec request', 
     apiKey: 'test-key',
     fetchImpl: async (_url, options) => {
       calls.push(JSON.parse(options.body));
-      return jsonResponse({ files: safeFiles });
+      return functionCallResponse('generate_app_files', { files: safeFiles });
     },
   });
 
@@ -278,13 +303,42 @@ test('backend route sends chat requests to Gemini using a server-side key', asyn
     assert.equal(request.url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent');
     assert.equal(request.headers['x-goog-api-key'], 'test-gemini-key');
     assert.equal(request.body.contents[0].parts[0].text, 'Build a dashboard');
-    assert.match(request.body.systemInstruction.parts[0].text, /elite full-stack AppSpec engineer/);
-    assert.equal(request.body.generationConfig.maxOutputTokens, 1024);
+    assert.match(request.body.systemInstruction.parts[0].text, /friendly, professional AI product collaborator/);
+    assert.match(request.body.systemInstruction.parts[0].text, /Do not show code blocks, raw JSON, YAML/);
+    assert.equal(request.body.generationConfig.maxOutputTokens, 1536);
+    assert.equal(request.body.generationConfig.temperature, 0.7);
+    assert.equal(request.body.generationConfig.topP, 0.9);
+    assert.equal(request.body.generationConfig.responseMimeType, 'text/plain');
+    assert.match(request.body.systemInstruction.parts[0].text, /public chat endpoint has no workspace file tools/);
   } finally {
     globalThis.fetch = previousFetch;
     if (previousApiKey === undefined) delete process.env.GEMINI_API_KEY;
     else process.env.GEMINI_API_KEY = previousApiKey;
   }
+});
+
+test('pipeline rejects unrequested Gemini function calls', async () => {
+  await assert.rejects(
+    runPipeline({
+      prompt: 'Build a task app',
+      appSpec: validSpec,
+      apiKey: 'test-key',
+      fetchImpl: async () => functionCallResponse('write_workspace_code', { files: safeFiles }),
+    }),
+    /did not call the required generate_app_files function/,
+  );
+});
+
+test('pipeline rejects malformed Gemini function-call arguments', async () => {
+  await assert.rejects(
+    runPipeline({
+      prompt: 'Build a task app',
+      appSpec: validSpec,
+      apiKey: 'test-key',
+      fetchImpl: async () => functionCallResponse('generate_app_files', []),
+    }),
+    /invalid arguments for generate_app_files/,
+  );
 });
 
 test('backend route rejects invalid messages and reports missing Gemini configuration', async () => {

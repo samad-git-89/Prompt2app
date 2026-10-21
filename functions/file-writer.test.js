@@ -142,7 +142,7 @@ test('integration target selection leaves unrelated generated destinations untou
     ];
     const fetchImpl = async () => new Response(JSON.stringify({
       candidates: [{
-        content: { parts: [{ text: JSON.stringify({ files }) }] },
+        content: { parts: [{ functionCall: { name: 'generate_app_files', args: { files } } }] },
       }],
     }));
     const targets = [

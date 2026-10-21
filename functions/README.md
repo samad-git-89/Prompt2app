@@ -1,6 +1,6 @@
 # Generation pipeline
 
-The pipeline uses the Gemini API to turn a request into a validated AppSpec, generate starter files, validate the files, and request up to three repairs. PostgreSQL DDL is generated deterministically from `data_models` and written to `supabase/schema.sql`; row-level security is enabled for each generated table. The five locked UI component tokens are validated by the AppSpec schema.
+The pipeline uses the Gemini API to turn a request into a validated AppSpec, generate starter files through a forced `generate_app_files` function call, validate the files, and request up to three repairs. Tool calls return structured file data only; the separate local writer validates paths and contents before writing. The public chat endpoint cannot access this local writer or the workspace. PostgreSQL DDL is generated deterministically from `data_models` and written to `supabase/schema.sql`; row-level security is enabled for each generated table. The five locked UI component tokens are validated by the AppSpec schema.
 
 Set `GEMINI_API_KEY` in the process environment. For local development, copy the placeholders from the repository-root `.env.example` into the ignored `.env` file and fill in the credentials required for the task.
 

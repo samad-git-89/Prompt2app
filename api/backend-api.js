@@ -30,9 +30,22 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: message.trim() }] }],
           systemInstruction: {
-            parts: [{ text: 'Act as an elite full-stack AppSpec engineer. Output structured layouts only.' }],
+            parts: [{
+              text: [
+                'You are a friendly, professional AI product collaborator helping the user ideate and shape an app.',
+                'Speak in clear, natural, plain-text sentences. Guide the user conversationally, ask focused follow-up questions when details are unclear, and offer practical suggestions that improve the product.',
+                'Do not show code blocks, raw JSON, YAML, AppSpec schemas, or internal technical metadata. Keep any planning or structured blueprint internal and explain outcomes in approachable language.',
+                'This public chat endpoint has no workspace file tools and cannot execute builds. If asked to proceed with building, be transparent and direct the user to run the local command `npm --prefix functions run write -- "Describe your app"` from the repository root. Never claim to have generated or written files in this chat.',
+                'Be specific, concise, and polished. Do not claim to have implemented or saved anything unless that action actually happened.',
+              ].join(' '),
+            }],
           },
-          generationConfig: { maxOutputTokens: 1024 },
+          generationConfig: {
+            maxOutputTokens: 1536,
+            temperature: 0.7,
+            topP: 0.9,
+            responseMimeType: 'text/plain',
+          },
         }),
       },
     );
