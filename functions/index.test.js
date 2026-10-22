@@ -1,7 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import { readFile } from 'node:fs/promises';
-import { generatePostgresSchema, runPipeline, validateAppSpec, validateGeneratedFiles } from './index.js';
+import { PassThrough } from 'node:stream';
+import {
+  generatePostgresSchema,
+  runPipeline,
+  runVisionInference,
+  validateAppSpec,
+  validateGeneratedFiles,
+} from './index.js';
 import backendApi from '../api/backend-api.js';
 import uiService from '../api/ui-service.js';
 
@@ -18,6 +26,29 @@ const safeFiles = [
   { path: 'public/index.html', content: '<!doctype html><html><body><main>App</main></body></html>\n' },
 ];
 
+const visionResult = {
+  status: 'ok',
+  image: 'dashboard.png',
+  width: 960,
+  height: 640,
+  classes: ['sidebar', 'dashboard_card', 'input_field', 'action_button', 'chat_feed']
+    .map((class_name, class_id) => ({ class_id, class_name })),
+  bounding_box_format: 'xyxy_pixels',
+  detections: [{
+    class_id: 0,
+    class_name: 'sidebar',
+    confidence_percent: 98.2,
+    bounding_box: {
+      x1: 0,
+      y1: 0,
+      x2: 190,
+      y2: 640,
+      format: 'xyxy',
+      units: 'pixels',
+    },
+  }],
+};
+
 function jsonResponse(value) {
   return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(value) }] } }] }));
 }
@@ -31,6 +62,61 @@ function functionCallResponse(name, args) {
 test('validates AppSpec against the repository schema', () => {
   assert.deepEqual(validateAppSpec(validSpec), []);
   assert.notDeepEqual(validateAppSpec({ name: 'missing required fields' }), []);
+});
+
+test('vision child process receives the image path as an argument and returns validated JSON', async () => {
+  let command;
+  let args;
+  let options;
+  const result = await runVisionInference('/tmp/dashboard.png', {
+    spawnImpl: (spawnCommand, spawnArgs, spawnOptions) => {
+      command = spawnCommand;
+      args = spawnArgs;
+      options = spawnOptions;
+      const child = new EventEmitter();
+      child.stdout = new PassThrough();
+      child.stderr = new PassThrough();
+      child.kill = () => true;
+      setImmediate(() => {
+        child.stdout.end(JSON.stringify(visionResult));
+        child.stderr.end();
+        setImmediate(() => child.emit('close', 0, null));
+      });
+      return child;
+    },
+  });
+
+  assert.equal(command, 'python3');
+  assert.deepEqual(args.slice(-2), ['--image', '/tmp/dashboard.png']);
+  assert.equal(args[0].endsWith('/training/inference_pipeline.py'), true);
+  assert.equal(options.cwd.replace(/\/$/, '').endsWith('/Prompt2app'), true);
+  assert.deepEqual(result, visionResult);
+});
+
+test('pipeline injects validated vision layout JSON into Gemini system context', async () => {
+  let requestBody;
+  const result = await runPipeline({
+    prompt: 'Recreate this dashboard',
+    appSpec: validSpec,
+    imagePath: '/tmp/dashboard.png',
+    apiKey: 'test-key',
+    visionInference: async (imagePath) => {
+      assert.equal(imagePath, '/tmp/dashboard.png');
+      return visionResult;
+    },
+    fetchImpl: async (_url, options) => {
+      requestBody = JSON.parse(options.body);
+      return functionCallResponse('generate_app_files', { files: safeFiles });
+    },
+  });
+
+  assert.equal(result.validation.valid, true);
+  const systemInstruction = requestBody.systemInstruction.parts[0].text;
+  assert.match(systemInstruction, /high-confidence structured UI layout context/);
+  assert.match(systemInstruction, /exact absolute pixel bounding-box coordinates/);
+  assert.match(systemInstruction, /premium slate\/charcoal dashboard CSS views/);
+  assert.match(systemInstruction, /"x2":190/);
+  assert.match(systemInstruction, /"y2":640/);
 });
 
 test('rejects unsafe paths, embedded credentials, and missing PostgreSQL schema for models', () => {
