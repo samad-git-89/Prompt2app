@@ -1,4 +1,4 @@
-path: "/workspaces/Prompt2app/data/ui_dataset"
+path: .
 train: images/train
 val: images/val
 nc: 5

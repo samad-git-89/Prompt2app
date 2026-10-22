@@ -75,11 +75,11 @@ four synthetic and two gold image/label pairs and refuses to overwrite existing 
 launcher verifies `best.pt` and `last.pt`, then runs a post-training validation pass. Pass
 `--force` to the seeder to replace its named mock fixtures when refreshing the smoke-test data.
 
-For the separate Phase 6 dashboard UI classes, run `python training/ingest_ui_data.py` to create
-`data/ui_dataset/` with train/validation image and label folders plus its absolute-root
-`dataset.yaml`. This scaffold uses the classes `sidebar`, `dashboard_card`, `input_field`,
-`action_button`, and `chat_feed`; it does not change the existing locked-component dataset above.
-Place the matching labeled images in those splits, then run
+For the separate Phase 6 dashboard UI classes, run `python training/ingest_ui_data.py` to generate
+40 training and 10 validation dashboard wireframes with matching YOLO labels in `data/ui_dataset/`.
+The dataset manifest uses a relative `path: .` and the classes `sidebar`, `dashboard_card`,
+`input_field`, `action_button`, and `chat_feed`; it does not change the existing locked-component
+dataset above. The generator refuses to overwrite its named fixtures unless passed `--force`. Then run
 `python training/train_yolo.py --dry-run` to inspect the 50-epoch CPU configuration. The trainer expects the local baseline at
 `training/weights/yolov8n.pt`; it never substitutes an arbitrary checkpoint.
 
