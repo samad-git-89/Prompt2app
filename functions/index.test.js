@@ -119,6 +119,39 @@ test('pipeline injects validated vision layout JSON into Gemini system context',
   assert.match(systemInstruction, /"y2":640/);
 });
 
+test('pipeline continues with text-only Gemini generation when vision inference fails', async () => {
+  let requestBody;
+  const warnings = [];
+  const previousWarn = console.warn;
+  console.warn = (...args) => warnings.push(args);
+
+  try {
+    const result = await runPipeline({
+      prompt: 'Recreate this dashboard from the text description',
+      appSpec: validSpec,
+      imagePath: '/vercel/path/to/dashboard.png',
+      apiKey: 'test-key',
+      visionInference: async () => {
+        throw new Error('Unable to start vision inference: spawn python3 ENOENT');
+      },
+      fetchImpl: async (_url, options) => {
+        requestBody = JSON.parse(options.body);
+        return functionCallResponse('generate_app_files', { files: safeFiles });
+      },
+    });
+
+    assert.equal(result.validation.valid, true);
+    const systemInstruction = requestBody.systemInstruction.parts[0].text;
+    assert.doesNotMatch(systemInstruction, /high-confidence structured UI layout context/);
+    assert.match(requestBody.contents[0].parts[0].text, /Recreate this dashboard from the text description/);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0][0], /continuing with text prompt only/);
+    assert.match(warnings[0][1].message, /ENOENT/);
+  } finally {
+    console.warn = previousWarn;
+  }
+});
+
 test('rejects unsafe paths, embedded credentials, and missing PostgreSQL schema for models', () => {
   assert.ok(validateGeneratedFiles(
     [{ path: 'src/main.js', content: 'export {};\n' }],

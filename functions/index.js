@@ -481,7 +481,14 @@ export async function runPipeline({
     throw new RangeError('maxRepairs must be an integer from 0 to 3');
   }
 
-  const visionResult = imagePath === undefined ? undefined : await visionInference(imagePath);
+  let visionResult;
+  if (imagePath !== undefined) {
+    try {
+      visionResult = await visionInference(imagePath);
+    } catch (error) {
+      console.warn('Vision inference failed; continuing with text prompt only:', error);
+    }
+  }
   const systemInstruction = visionResult
     ? [
       systemInstructionTemplate,
