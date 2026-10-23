@@ -64,6 +64,11 @@ test('validates AppSpec against the repository schema', () => {
   assert.notDeepEqual(validateAppSpec({ name: 'missing required fields' }), []);
 });
 
+test('declares ESM for Vercel serverless handlers', async () => {
+  const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+  assert.equal(packageJson.type, 'module');
+});
+
 test('vision child process receives the image path as an argument and returns validated JSON', async () => {
   let command;
   let args;
