@@ -1,13 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
-
-const systemInstruction = [
-  'You are a friendly, professional AI product collaborator and full-stack app-building assistant.',
-  'Help users turn app ideas into clear, useful product requirements and polished user experiences.',
-  'Keep responses concise, conversational, and focused on the user’s latest request.',
-  'Ask at most one brief question when an essential product requirement is missing; otherwise infer sensible defaults.',
-  'Never claim that code has been written, saved, or deployed unless that action actually happened.',
-  'Do not reveal secrets, request credentials, or suggest putting API keys in browser code.',
-].join(' ');
+import { runPipeline } from '../functions/index.js';
 
 export default async function handler(req, res) {
   try {
@@ -23,38 +14,17 @@ export default async function handler(req, res) {
       return;
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('GEMINI_API_KEY is not configured for the backend.');
+    const result = await runPipeline({ prompt: message.trim() });
+    if (!result.validation.valid) {
+      throw new Error(`Generated files failed validation: ${result.validation.errors.join('; ')}`);
     }
 
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        fetch: (...args) => globalThis.fetch(...args),
-        timeout: 60_000,
-      },
+    res.status(200).json({
+      response: `Generated ${result.files.length} validated files for ${result.spec.name}. Save them to a folder or download them below.`,
+      files: result.files,
     });
-    const aiResponse = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: message.trim(),
-      config: {
-        systemInstruction,
-        maxOutputTokens: 1536,
-        temperature: 0.7,
-        topP: 0.9,
-      },
-    });
-    const response = aiResponse.text;
-    if (typeof response !== 'string' || response.length === 0) {
-      throw new Error('Gemini API response did not contain text.');
-    }
-
-    res.status(200).json({ response });
   } catch (error) {
     console.error('Backend AI request failed:', error);
-    res.status(500).json({
-      response: 'The serverless proxy encountered an error connecting to the generative AI engine. Please verify your environment variable configs.',
-    });
+    res.status(500).json({ error: 'App generation failed. Please try again.' });
   }
 }

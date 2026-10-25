@@ -493,6 +493,28 @@
             background: rgba(174, 190, 220, 0.07);
             color: #e1e7f3;
         }
+        .generated-files {
+            display: grid;
+            gap: 0.45rem;
+            max-width: min(78%, 680px);
+            color: #aebbd2;
+            font-size: 0.78rem;
+        }
+        .generated-files summary { cursor: pointer; }
+        .generated-file-list {
+            display: grid;
+            gap: 0.25rem;
+            max-height: 180px;
+            overflow: auto;
+            padding: 0.4rem 0 0.4rem 0.9rem;
+        }
+        .generated-file-button {
+            width: fit-content;
+            max-width: 100%;
+            overflow-wrap: anywhere;
+            text-align: left;
+        }
+        .generated-files-status { min-height: 1em; color: #91a0bd; }
         .page-footnote { margin: 2.25rem 0 0; color: #687489; font-size: 0.76rem; text-align: center; }
         .page-footnote span { color: #91a0bd; }
         .sr-only {
@@ -716,6 +738,128 @@
             scrollConversationToBottom();
         }
 
+        function validateGeneratedFiles(files) {
+            if (!Array.isArray(files) || files.length === 0 || files.length > 100) return false;
+            let totalBytes = 0;
+            const paths = new Set();
+            const restrictedSegments = new Set(['.git', 'node_modules', '.prompt2app']);
+            for (const file of files) {
+                if (!file || typeof file.path !== 'string' || typeof file.content !== 'string') return false;
+                const segments = file.path.split('/');
+                if (
+                    file.path.length === 0
+                    || file.path.startsWith('/')
+                    || file.path.includes('\\')
+                    || file.path.includes(':')
+                    || segments.some((segment) =>
+                        !segment
+                        || segment === '.'
+                        || segment === '..'
+                        || restrictedSegments.has(segment)
+                        || /^\.env(?:\.|$)/i.test(segment))
+                    || paths.has(file.path)
+                ) return false;
+                paths.add(file.path);
+                const bytes = new TextEncoder().encode(file.content).byteLength;
+                if (bytes > 1024 * 1024) return false;
+                totalBytes += bytes;
+            }
+            return totalBytes <= 5 * 1024 * 1024;
+        }
+
+        function addGeneratedFilesControls(messageContent, files) {
+            const delivery = document.createElement('div');
+            delivery.className = 'generated-files';
+            const summary = document.createElement('strong');
+            summary.textContent = `${files.length} generated files`;
+            delivery.appendChild(summary);
+
+            const status = document.createElement('p');
+            status.className = 'generated-files-status';
+            status.setAttribute('aria-live', 'polite');
+            delivery.appendChild(status);
+
+            if (typeof window.showDirectoryPicker === 'function') {
+                const saveButton = document.createElement('button');
+                saveButton.className = 'utility-button generated-file-button';
+                saveButton.type = 'button';
+                saveButton.textContent = 'Save files to a folder';
+                saveButton.addEventListener('click', async () => {
+                    saveButton.disabled = true;
+                    let saved = 0;
+                    try {
+                        const root = await window.showDirectoryPicker({ mode: 'readwrite' });
+                        let skipped = 0;
+                        for (const file of files) {
+                            const segments = file.path.split('/');
+                            let directory = root;
+                            for (const segment of segments.slice(0, -1)) {
+                                directory = await directory.getDirectoryHandle(segment, { create: true });
+                            }
+
+                            const name = segments.at(-1);
+                            let exists = false;
+                            try {
+                                await directory.getFileHandle(name);
+                                exists = true;
+                            } catch (error) {
+                                if (error.name !== 'NotFoundError') throw error;
+                            }
+                            if (exists && !window.confirm(`Replace the existing file ${file.path}?`)) {
+                                skipped += 1;
+                                continue;
+                            }
+
+                            const handle = await directory.getFileHandle(name, { create: true });
+                            const writable = await handle.createWritable();
+                            await writable.write(file.content);
+                            await writable.close();
+                            saved += 1;
+                        }
+                        status.textContent = skipped
+                            ? `Saved ${saved} file(s); skipped ${skipped}.`
+                            : `Saved ${saved} file(s).`;
+                    } catch (error) {
+                        if (error.name !== 'AbortError') {
+                            console.error('Failed to save generated files:', error);
+                            status.textContent = saved
+                                ? `Saved ${saved} file(s) before the error. Check the folder, then download any missing files below.`
+                                : 'Could not save the files. Try downloading them individually.';
+                        }
+                    } finally {
+                        saveButton.disabled = false;
+                    }
+                });
+                delivery.appendChild(saveButton);
+            }
+
+            const downloads = document.createElement('details');
+            const downloadsSummary = document.createElement('summary');
+            downloadsSummary.textContent = 'Download individual files';
+            downloads.appendChild(downloadsSummary);
+            const list = document.createElement('div');
+            list.className = 'generated-file-list';
+            for (const file of files) {
+                const downloadButton = document.createElement('button');
+                downloadButton.className = 'utility-button generated-file-button';
+                downloadButton.type = 'button';
+                downloadButton.textContent = file.path;
+                downloadButton.addEventListener('click', () => {
+                    const url = URL.createObjectURL(new Blob([file.content], { type: 'text/plain;charset=utf-8' }));
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = file.path.split('/').at(-1);
+                    link.click();
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                });
+                list.appendChild(downloadButton);
+            }
+            downloads.appendChild(list);
+            delivery.appendChild(downloads);
+            messageContent.appendChild(delivery);
+            scrollConversationToBottom();
+        }
+
         function renderQuickReplies() {
             quickReplies.replaceChildren();
             for (const choice of ['Keep it simple', 'Add user accounts', 'Show me another direction']) {
@@ -769,9 +913,13 @@
                 if (typeof data.response !== 'string' || data.response.length === 0) {
                     throw new Error('The assistant returned an empty response.');
                 }
+                if (!validateGeneratedFiles(data.files)) {
+                    throw new Error('The app server returned invalid generated files.');
+                }
                 responseBubble.textContent = data.response;
                 conversationHistory.push({ role: 'assistant', content: data.response });
                 addResponseUtilities(assistantMessage.messageContent, data.response);
+                addGeneratedFilesControls(assistantMessage.messageContent, data.files);
                 hasConversationStarted = true;
                 if (data.response.includes('?')) {
                     setUXState('gathering_specs');

@@ -244,21 +244,24 @@ test('repairs invalid generated files and returns a validated result', async () 
   );
   for (const call of calls) {
     const systemInstruction = call.body.systemInstruction.parts[0].text;
-    assert.match(systemInstruction, /friendly, professional AI product collaborator/);
+    assert.match(systemInstruction, /Prompt2app generation and orchestration engine/);
     assert.match(systemInstruction, /only a valid JSON object/);
     assert.match(systemInstruction, /internal machine data/);
     assert.match(systemInstruction, /never a user-facing chat response/);
-    assert.match(systemInstruction, /detailed Web Application component specification.*compile it into the requested application files immediately/);
-    assert.match(systemInstruction, /complete public\/index\.html entry point and supabase\/schema\.sql/);
+    assert.match(systemInstruction, /On the first request, infer sensible defaults.*immediately compile the app/);
+    assert.match(systemInstruction, /Call the provided generate_app_files function whenever this generation pipeline runs/);
+    assert.match(systemInstruction, /complete public\/index\.html entry point, supabase\/schema\.sql/);
     assert.match(systemInstruction, /Keep user-facing copy natural/);
     assert.match(systemInstruction, /responsive grid and flexbox layouts/);
     assert.match(systemInstruction, /#0B0F19/);
-    assert.match(systemInstruction, /#a5b4fc and #38bdf8/);
-    assert.match(systemInstruction, /centered hero banner/);
-    assert.match(systemInstruction, /Site, SaaS, and API/);
+    assert.match(systemInstruction, /#A5B4FC, #38BDF8, and #818CF8/);
+    assert.match(systemInstruction, /centered “What are we building today\?” hero/);
+    assert.match(systemInstruction, /Site\/SaaS\/API category tags/);
     assert.match(systemInstruction, /prefers-reduced-motion/);
-    assert.match(systemInstruction, /use a dbClient variable/);
-    assert.match(systemInstruction, /Never expose secret or service-role keys/);
+    assert.match(systemInstruction, /use a dbClient backed only by the public project URL/);
+    assert.match(systemInstruction, /never expose secret or service-role keys/i);
+    assert.match(systemInstruction, /never grant blanket anonymous read\/write access/);
+    assert.match(systemInstruction, /does not itself write to a user’s local disk/);
   }
   assert.match(calls[2].body.contents[0].parts[0].text, /Validation errors to fix/);
   assert.match(calls[1].body.contents[0].parts[0].text, /\/api\/backend-api/);
@@ -456,6 +459,11 @@ test('public page sends chat messages to the same-origin backend and safely hand
   assert.match(html, /The app server returned an unexpected response\. Please try again later\./);
   assert.match(html, /data\.error \|\| data\.response \|\| `Request failed/);
   assert.doesNotMatch(html, /dbClient|saveUserMessage|\.from\(|\.insert\(/);
+  assert.match(html, /function validateGeneratedFiles\(files\)/);
+  assert.match(html, /window\.showDirectoryPicker\(\{ mode: 'readwrite' \}\)/);
+  assert.match(html, /await writable\.write\(file\.content\)/);
+  assert.match(html, /Download individual files/);
+  assert.match(html, /addGeneratedFilesControls\(assistantMessage\.messageContent, data\.files\)/);
   assert.match(html, /responseBubble\.textContent = data\.response/);
   assert.match(html, /class="chat-feed" id="chat-feed"[^>]*aria-live="polite"/);
   assert.match(html, /background: #2563eb/);
@@ -479,21 +487,23 @@ test('public page sends chat messages to the same-origin backend and safely hand
   assert.doesNotMatch(html, /\blet supabase\b|\bsupabase\.auth/);
 });
 
-test('backend route sends chat requests to Gemini using a server-side key', async () => {
+test('backend route generates files through a forced tool call and returns them to the client', async () => {
   const previousApiKey = process.env.GEMINI_API_KEY;
   const previousFetch = globalThis.fetch;
   process.env.GEMINI_API_KEY = 'test-gemini-key';
-  let request;
+  const requests = [];
+  const responses = [
+    jsonResponse(validSpec),
+    functionCallResponse('generate_app_files', { files: safeFiles }),
+  ];
   globalThis.fetch = async (url, options) => {
     const requestData = url instanceof Request ? url : new Request(url, options);
-    request = {
+    requests.push({
       url: requestData.url,
       headers: Object.fromEntries(requestData.headers.entries()),
       body: JSON.parse(await requestData.clone().text()),
-    };
-    return new Response(JSON.stringify({
-      candidates: [{ content: { parts: [{ text: 'Structured response' }] } }],
-    }), { headers: { 'content-type': 'application/json' } });
+    });
+    return responses.shift();
   };
 
   const response = {
@@ -510,14 +520,18 @@ test('backend route sends chat requests to Gemini using a server-side key', asyn
   try {
     await backendApi({ method: 'POST', body: { message: 'Build a dashboard' } }, response);
     assert.equal(response.statusCode, 200);
-    assert.deepEqual(response.body, { response: 'Structured response' });
-    assert.match(request.url, /generativelanguage\.googleapis\.com\/.*models\/gemini-2\.5-flash:generateContent/);
-    assert.match(JSON.stringify(request.headers), /test-gemini-key/);
-    assert.match(JSON.stringify(request.body), /Build a dashboard/);
-    assert.match(JSON.stringify(request.body), /friendly, professional AI product collaborator/);
-    assert.equal(request.body.generationConfig.maxOutputTokens, 1536);
-    assert.equal(request.body.generationConfig.temperature, 0.7);
-    assert.equal(request.body.generationConfig.topP, 0.9);
+    assert.match(response.body.response, /Generated \d+ validated files for Task list/);
+    assert.ok(response.body.files.some(({ path }) => path === 'public/index.html'));
+    const generatedSchema = response.body.files.find(({ path }) => path === 'supabase/schema.sql');
+    assert.ok(generatedSchema);
+    assert.match(generatedSchema.content, /ENABLE ROW LEVEL SECURITY/);
+    assert.doesNotMatch(generatedSchema.content, /\bTO anon\b/);
+    assert.equal(requests.length, 2);
+    assert.match(requests[0].url, /generativelanguage\.googleapis\.com\/.*models\/gemini-2\.5-flash:generateContent/);
+    assert.match(JSON.stringify(requests[0].headers), /test-gemini-key/);
+    assert.match(JSON.stringify(requests[0].body), /Build a dashboard/);
+    assert.equal(requests[1].body.tools[0].functionDeclarations[0].name, 'generate_app_files');
+    assert.equal(requests[1].body.toolConfig.functionCallingConfig.mode, 'ANY');
   } finally {
     globalThis.fetch = previousFetch;
     if (previousApiKey === undefined) delete process.env.GEMINI_API_KEY;
@@ -525,11 +539,15 @@ test('backend route sends chat requests to Gemini using a server-side key', asyn
   }
 });
 
-test('backend handles detailed app requests with its local Gemini SDK dependency', async () => {
+test('backend compiles detailed app requests on the first turn', async () => {
   const previousApiKey = process.env.GEMINI_API_KEY;
   const previousFetch = globalThis.fetch;
   process.env.GEMINI_API_KEY = 'test-gemini-key';
   const requests = [];
+  const responses = [
+    jsonResponse(validSpec),
+    functionCallResponse('generate_app_files', { files: safeFiles }),
+  ];
   globalThis.fetch = async (url, options) => {
     const requestData = url instanceof Request ? url : new Request(url, options);
     requests.push({
@@ -537,9 +555,7 @@ test('backend handles detailed app requests with its local Gemini SDK dependency
       body: JSON.parse(await requestData.clone().text()),
       headers: Object.fromEntries(requestData.headers.entries()),
     });
-    return new Response(JSON.stringify({
-      candidates: [{ content: { parts: [{ text: 'A tailored app plan.' }] } }],
-    }), { headers: { 'content-type': 'application/json' } });
+    return responses.shift();
   };
 
   const response = {
@@ -563,10 +579,11 @@ test('backend handles detailed app requests with its local Gemini SDK dependency
   try {
     await backendApi({ method: 'POST', body: { message } }, response);
     assert.equal(response.statusCode, 200);
-    assert.equal(requests.length, 1);
+    assert.equal(requests.length, 2);
     assert.match(requests[0].url, /models\/gemini-2\.5-flash:generateContent/);
     assert.match(JSON.stringify(requests[0].body), /Log fields for timestamp/);
-    assert.deepEqual(response.body, { response: 'A tailored app plan.' });
+    assert.match(response.body.response, /Generated \d+ validated files for Task list/);
+    assert.equal(requests[1].body.tools[0].functionDeclarations[0].name, 'generate_app_files');
   } finally {
     globalThis.fetch = previousFetch;
     if (previousApiKey === undefined) delete process.env.GEMINI_API_KEY;
@@ -623,9 +640,7 @@ test('backend route rejects invalid messages and reports missing Gemini configur
     const missingKeyResponse = makeResponse();
     await backendApi({ method: 'POST', body: { message: 'Hello' } }, missingKeyResponse);
     assert.equal(missingKeyResponse.statusCode, 500);
-    assert.deepEqual(missingKeyResponse.body, {
-      response: 'The serverless proxy encountered an error connecting to the generative AI engine. Please verify your environment variable configs.',
-    });
+    assert.deepEqual(missingKeyResponse.body, { error: 'App generation failed. Please try again.' });
   } finally {
     if (previousApiKey === undefined) delete process.env.GEMINI_API_KEY;
     else process.env.GEMINI_API_KEY = previousApiKey;
@@ -653,9 +668,7 @@ test('backend route returns structured JSON when the Gemini connection fails', a
   try {
     await backendApi({ method: 'POST', body: { message: 'Hello' } }, response);
     assert.equal(response.statusCode, 500);
-    assert.deepEqual(response.body, {
-      response: 'The serverless proxy encountered an error connecting to the generative AI engine. Please verify your environment variable configs.',
-    });
+    assert.deepEqual(response.body, { error: 'App generation failed. Please try again.' });
   } finally {
     globalThis.fetch = previousFetch;
     if (previousApiKey === undefined) delete process.env.GEMINI_API_KEY;
