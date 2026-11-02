@@ -1,7 +1,7 @@
 {
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": "24.x"
   },
   "dependencies": {
     "@google/genai": "2.30.0",

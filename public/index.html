@@ -597,6 +597,83 @@
                 animation-duration: 0.01ms !important;
             }
         }
+        .hero,
+        .page-footnote {
+            transition: opacity 220ms ease, visibility 220ms ease, display 220ms allow-discrete;
+        }
+        body[data-ux-state="conversing"] .main-content,
+        body[data-ux-state="gathering_specs"] .main-content {
+            width: min(100% - 1.5rem, 1600px);
+            padding: 0.75rem 0 1rem;
+        }
+        body[data-ux-state="conversing"]:has(.workspace.has-conversation) .hero,
+        body[data-ux-state="gathering_specs"]:has(.workspace.has-conversation) .hero,
+        body[data-ux-state="conversing"]:has(.workspace.has-conversation) .page-footnote,
+        body[data-ux-state="gathering_specs"]:has(.workspace.has-conversation) .page-footnote {
+            display: none;
+            opacity: 0;
+            visibility: hidden;
+        }
+        body[data-ux-state="conversing"] .workspace.has-conversation,
+        body[data-ux-state="gathering_specs"] .workspace.has-conversation {
+            display: flex;
+            flex-direction: column;
+            max-width: 100%;
+            min-height: calc(100vh - 96px);
+        }
+        body[data-ux-state="conversing"] .conversation-panel.is-visible {
+            grid-template-columns: minmax(0, 1fr);
+        }
+        body[data-ux-state="gathering_specs"] .conversation-panel.is-visible {
+            grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+        }
+        body[data-ux-state="conversing"] .conversation-panel.is-visible,
+        body[data-ux-state="gathering_specs"] .conversation-panel.is-visible {
+            flex: 1;
+            min-height: calc(100vh - 170px);
+        }
+        body[data-ux-state="conversing"] .conversation-thread-pane,
+        body[data-ux-state="gathering_specs"] .conversation-thread-pane {
+            display: flex;
+            flex-direction: column;
+            min-height: calc(100vh - 175px);
+        }
+        body[data-ux-state="conversing"] .conversation-thread-pane .chat-feed,
+        body[data-ux-state="gathering_specs"] .conversation-thread-pane .chat-feed {
+            flex: 1;
+            width: 100%;
+            max-width: 100%;
+            height: calc(100vh - 285px);
+            min-height: 420px;
+            max-height: none;
+        }
+        .ai-message-content {
+            width: 100%;
+            max-width: min(92%, 1180px);
+        }
+        .generated-files {
+            width: 100%;
+            max-width: 100%;
+        }
+        .preview-frame {
+            width: 100%;
+            height: min(65vh, 620px);
+            min-height: 420px;
+        }
+        .code-viewer { max-height: min(60vh, 560px); }
+        .preview-inspector.is-fullscreen-preview {
+            position: fixed;
+            inset: 1rem;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            background: #0b0f19;
+            padding: 1rem;
+        }
+        .preview-inspector.is-fullscreen-preview .preview-frame {
+            flex: 1;
+            height: calc(100vh - 7rem);
+        }
     </style>
 </head>
 <body>
@@ -695,6 +772,7 @@
         let currentUXState = 'idle';
         let hasConversationStarted = false;
         let hasGeneratedAnyApp = false;
+        let latestSpec = null;
         const conversationHistory = [];
 
         function setUXState(nextState) {
@@ -918,6 +996,7 @@
 
             const inspector = document.createElement('details');
             inspector.className = 'preview-inspector';
+            inspector.open = true;
             const inspectorSummary = document.createElement('summary');
             inspectorSummary.textContent = 'Preview & inspect generated code';
             inspector.appendChild(inspectorSummary);
@@ -942,6 +1021,17 @@
             modeTabs.appendChild(previewTabBtn);
             modeTabs.appendChild(codeTabBtn);
             toolbar.appendChild(modeTabs);
+            const expandPreviewBtn = document.createElement('button');
+            expandPreviewBtn.className = 'utility-button';
+            expandPreviewBtn.type = 'button';
+            expandPreviewBtn.textContent = 'Expand preview';
+            expandPreviewBtn.setAttribute('aria-expanded', 'false');
+            expandPreviewBtn.addEventListener('click', () => {
+                const isExpanded = inspector.classList.toggle('is-fullscreen-preview');
+                expandPreviewBtn.textContent = isExpanded ? 'Collapse preview' : 'Expand preview';
+                expandPreviewBtn.setAttribute('aria-expanded', String(isExpanded));
+            });
+            toolbar.appendChild(expandPreviewBtn);
             inspector.appendChild(toolbar);
 
             const previewFrame = document.createElement('iframe');
@@ -1023,7 +1113,10 @@
                 .slice(-8)
                 .map(({ role, content }) => `${role === 'user' ? 'User' : 'Assistant'}: ${content}`)
                 .join('\n');
-            return `Product type: ${selectedCategory}\nConversation so far:\n${transcript}`.slice(-3900);
+            const specContext = latestSpec
+                ? `\nCurrent AppSpec: ${JSON.stringify(latestSpec)}`
+                : '';
+            return `Product type: ${selectedCategory}\nConversation so far:\n${transcript}${specContext}`.slice(-3900);
         }
 
         async function sendMessage(messageText, input, submitButton) {
@@ -1068,6 +1161,7 @@
                 addResponseUtilities(assistantMessage.messageContent, data.response);
                 if (hasGeneratedFiles) {
                     hasGeneratedAnyApp = true;
+                    latestSpec = data.spec;
                     addGeneratedFilesControls(assistantMessage.messageContent, data.files);
                 }
                 hasConversationStarted = true;

@@ -21,6 +21,7 @@ const greetingPatterns = [
   /^good\s+(?:morning|afternoon|evening|day)(?:\s+there|\s+prompt2app|\s+assistant|\s+ai)?$/i,
   /^(?:(?:hi|hello|hey)(?:\s+there)?\s+)?(?:how\s+are\s+you(?:\s+doing|\s+today)?|how\s+is\s+it\s+going|how's\s+it\s+going|what's\s+up|whats\s+up|how\s+do\s+you\s+do)(?:\s+today)?$/i,
   /^(?:who\s+are\s+you|what\s+can\s+you\s+do|what\s+is\s+this|help|help\s+me)$/i,
+  /^(?:what\s+(?:kind|types?|sort)\s+of\s+(?:apps?|applications?|projects?|sites?|things?)\s+can\s+(?:we|you|i)\s+(?:build|make|create)|what\s+can\s+(?:we|you|i)\s+(?:build|make|create)(?:\s+today|\s+here)?|give\s+me\s+(?:some\s+)?(?:app\s+)?ideas|how\s+does\s+this\s+work|can\s+you\s+help\s+me)$/i,
 ];
 const conversationalInstruction = [
   'You are the friendly conversational onboarding assistant for Prompt2app.',
@@ -32,16 +33,14 @@ const defaultGreetingReply = 'Hi there! Welcome to prompt2app. What kind of Site
 export function isConversationalGreeting(prompt) {
   if (typeof prompt !== 'string' || prompt.trim().length === 0) return false;
   const userMatches = [...prompt.matchAll(/^User:\s*(.+)$/gim)].map((match) => match[1].trim());
-  const candidates = userMatches.length > 0 ? userMatches : [prompt.trim()];
-  return candidates.every((entry) => {
-    const normalized = entry
-      .replace(/[!?.~,;:'"`()+]+/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    return normalized.length > 0
-      && normalized.length <= 80
-      && greetingPatterns.some((pattern) => pattern.test(normalized));
-  });
+  const latest = userMatches.length > 0 ? userMatches.at(-1) : prompt.trim();
+  const normalized = latest
+    .replace(/[!?.~,;:'"`()+]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return normalized.length > 0
+    && normalized.length <= 80
+    && greetingPatterns.some((pattern) => pattern.test(normalized));
 }
 
 export async function runConversationalTurn({

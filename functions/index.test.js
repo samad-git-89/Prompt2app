@@ -695,6 +695,17 @@ test('rejects legacy collection-based data model specs', () => {
   assert.ok(validateAppSpec(legacyModelSpec).length > 0);
 });
 
+test('uses the latest user turn when detecting conversational greetings', () => {
+  const prompt = 'User: hi\nAssistant: Hello! What are we building?\nUser: Build a task tracker';
+  assert.equal(isConversationalGreeting(prompt), false);
+});
+
+test('recognizes general app discovery questions as conversational', () => {
+  assert.equal(isConversationalGreeting('what kind of app can we build ?'), true);
+  assert.equal(isConversationalGreeting('what can we build today?'), true);
+  assert.equal(isConversationalGreeting('Build a SaaS dashboard'), false);
+});
+
 test('backend responds conversationally to simple greetings without generating dummy app files', async () => {
   assert.equal(isConversationalGreeting('hi'), true);
   assert.equal(isConversationalGreeting('Product type: SaaS\nConversation so far:\nUser: hi'), true);
