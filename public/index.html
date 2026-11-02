@@ -515,6 +515,47 @@
             text-align: left;
         }
         .generated-files-status { min-height: 1em; color: #91a0bd; }
+        .preview-inspector {
+            margin-top: 0.25rem;
+            border: 1px solid rgba(174, 190, 220, 0.14);
+            border-radius: 12px;
+            background: rgba(8, 12, 21, 0.72);
+            padding: 0.55rem 0.75rem;
+        }
+        .preview-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            margin: 0.55rem 0;
+        }
+        .preview-mode-tabs, .code-file-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
+        .preview-frame {
+            width: 100%;
+            height: 280px;
+            border: 1px solid rgba(174, 190, 220, 0.14);
+            border-radius: 10px;
+            background: #0b0f19;
+        }
+        .code-viewer {
+            margin: 0.45rem 0 0;
+            max-height: 240px;
+            overflow: auto;
+            padding: 0.75rem;
+            border: 1px solid rgba(174, 190, 220, 0.12);
+            border-radius: 10px;
+            background: rgba(5, 8, 15, 0.9);
+            color: #dbe4f5;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 0.73rem;
+            line-height: 1.5;
+            white-space: pre;
+        }
         .page-footnote { margin: 2.25rem 0 0; color: #687489; font-size: 0.76rem; text-align: center; }
         .page-footnote span { color: #91a0bd; }
         .sr-only {
@@ -653,6 +694,7 @@
         let selectedCategory = 'SaaS';
         let currentUXState = 'idle';
         let hasConversationStarted = false;
+        let hasGeneratedAnyApp = false;
         const conversationHistory = [];
 
         function setUXState(nextState) {
@@ -767,6 +809,23 @@
             return totalBytes <= 5 * 1024 * 1024;
         }
 
+        function buildPreviewSrcdoc(files) {
+            const entry = files.find((file) => file.path === 'public/index.html' || file.path === 'index.html');
+            if (!entry) return '';
+            let doc = entry.content;
+            const cssContents = files
+                .filter((file) => file.path.endsWith('.css'))
+                .map((file) => file.content)
+                .join('\n');
+            if (cssContents) {
+                const styleTag = `<style>\n${cssContents}\n</style>`;
+                doc = doc.includes('</head>')
+                    ? doc.replace('</head>', `${styleTag}\n</head>`)
+                    : `${styleTag}\n${doc}`;
+            }
+            return doc;
+        }
+
         function addGeneratedFilesControls(messageContent, files) {
             const delivery = document.createElement('div');
             delivery.className = 'generated-files';
@@ -856,13 +915,98 @@
             }
             downloads.appendChild(list);
             delivery.appendChild(downloads);
+
+            const inspector = document.createElement('details');
+            inspector.className = 'preview-inspector';
+            const inspectorSummary = document.createElement('summary');
+            inspectorSummary.textContent = 'Preview & inspect generated code';
+            inspector.appendChild(inspectorSummary);
+
+            const toolbar = document.createElement('div');
+            toolbar.className = 'preview-toolbar';
+            const modeTabs = document.createElement('div');
+            modeTabs.className = 'preview-mode-tabs';
+
+            const previewTabBtn = document.createElement('button');
+            previewTabBtn.className = 'utility-button';
+            previewTabBtn.type = 'button';
+            previewTabBtn.textContent = 'Live Preview';
+            previewTabBtn.setAttribute('aria-pressed', 'true');
+
+            const codeTabBtn = document.createElement('button');
+            codeTabBtn.className = 'utility-button';
+            codeTabBtn.type = 'button';
+            codeTabBtn.textContent = 'Code Inspector';
+            codeTabBtn.setAttribute('aria-pressed', 'false');
+
+            modeTabs.appendChild(previewTabBtn);
+            modeTabs.appendChild(codeTabBtn);
+            toolbar.appendChild(modeTabs);
+            inspector.appendChild(toolbar);
+
+            const previewFrame = document.createElement('iframe');
+            previewFrame.className = 'preview-frame';
+            previewFrame.setAttribute('sandbox', 'allow-scripts');
+            previewFrame.setAttribute('title', 'Live preview of generated application');
+            previewFrame.srcdoc = buildPreviewSrcdoc(files);
+            inspector.appendChild(previewFrame);
+
+            const codePanel = document.createElement('div');
+            codePanel.hidden = true;
+            const fileTabs = document.createElement('div');
+            fileTabs.className = 'code-file-tabs';
+            const codeViewer = document.createElement('pre');
+            codeViewer.className = 'code-viewer';
+            codeViewer.textContent = files[0]?.content ?? '';
+
+            files.forEach((file, index) => {
+                const fileBtn = document.createElement('button');
+                fileBtn.className = 'utility-button';
+                fileBtn.type = 'button';
+                fileBtn.textContent = file.path;
+                fileBtn.setAttribute('aria-pressed', String(index === 0));
+                fileBtn.addEventListener('click', () => {
+                    fileTabs.querySelectorAll('[aria-pressed]').forEach((btn) => {
+                        btn.setAttribute('aria-pressed', 'false');
+                    });
+                    fileBtn.setAttribute('aria-pressed', 'true');
+                    codeViewer.textContent = file.content;
+                });
+                fileTabs.appendChild(fileBtn);
+            });
+
+            codePanel.appendChild(fileTabs);
+            codePanel.appendChild(codeViewer);
+            inspector.appendChild(codePanel);
+
+            previewTabBtn.addEventListener('click', () => {
+                previewTabBtn.setAttribute('aria-pressed', 'true');
+                codeTabBtn.setAttribute('aria-pressed', 'false');
+                previewFrame.hidden = false;
+                codePanel.hidden = true;
+            });
+            codeTabBtn.addEventListener('click', () => {
+                codeTabBtn.setAttribute('aria-pressed', 'true');
+                previewTabBtn.setAttribute('aria-pressed', 'false');
+                previewFrame.hidden = true;
+                codePanel.hidden = false;
+            });
+
+            delivery.appendChild(inspector);
             messageContent.appendChild(delivery);
             scrollConversationToBottom();
         }
 
         function renderQuickReplies() {
             quickReplies.replaceChildren();
-            for (const choice of ['Keep it simple', 'Add user accounts', 'Show me another direction']) {
+            const choices = hasGeneratedAnyApp
+                ? ['Keep it simple', 'Add user accounts', 'Show me another direction']
+                : [
+                    'A SaaS dashboard to track team projects and tasks',
+                    'A clean photography portfolio site with a gallery',
+                    'A reading-list API with search and tagging',
+                ];
+            for (const choice of choices) {
                 const button = document.createElement('button');
                 button.className = 'quick-reply';
                 button.type = 'button';
@@ -913,13 +1057,19 @@
                 if (typeof data.response !== 'string' || data.response.length === 0) {
                     throw new Error('The assistant returned an empty response.');
                 }
-                if (!validateGeneratedFiles(data.files)) {
-                    throw new Error('The app server returned invalid generated files.');
+                const hasGeneratedFiles = Array.isArray(data.files) && data.files.length > 0;
+                if (!data.isConversational || hasGeneratedFiles) {
+                    if (!validateGeneratedFiles(data.files)) {
+                        throw new Error('The app server returned invalid generated files.');
+                    }
                 }
                 responseBubble.textContent = data.response;
                 conversationHistory.push({ role: 'assistant', content: data.response });
                 addResponseUtilities(assistantMessage.messageContent, data.response);
-                addGeneratedFilesControls(assistantMessage.messageContent, data.files);
+                if (hasGeneratedFiles) {
+                    hasGeneratedAnyApp = true;
+                    addGeneratedFilesControls(assistantMessage.messageContent, data.files);
+                }
                 hasConversationStarted = true;
                 if (data.response.includes('?')) {
                     setUXState('gathering_specs');

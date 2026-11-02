@@ -16,6 +16,74 @@ const repositoryRoot = fileURLToPath(new URL('..', import.meta.url));
 const inferenceScript = fileURLToPath(new URL('../training/inference_pipeline.py', import.meta.url));
 const visionClassNames = ['sidebar', 'dashboard_card', 'input_field', 'action_button', 'chat_feed'];
 const maxVisionOutputBytes = 4 * 1024 * 1024;
+const greetingPatterns = [
+  /^(?:hi|hello|hey|hiya|howdy|yo|sup|hola|salam|assalamu alaikum|greetings)(?:\s+there|\s+prompt2app|\s+assistant|\s+ai)?$/i,
+  /^good\s+(?:morning|afternoon|evening|day)(?:\s+there|\s+prompt2app|\s+assistant|\s+ai)?$/i,
+  /^(?:(?:hi|hello|hey)(?:\s+there)?\s+)?(?:how\s+are\s+you(?:\s+doing|\s+today)?|how\s+is\s+it\s+going|how's\s+it\s+going|what's\s+up|whats\s+up|how\s+do\s+you\s+do)(?:\s+today)?$/i,
+  /^(?:who\s+are\s+you|what\s+can\s+you\s+do|what\s+is\s+this|help|help\s+me)$/i,
+];
+const conversationalInstruction = [
+  'You are the friendly conversational onboarding assistant for Prompt2app.',
+  'When the user sends a greeting or general pleasantry without describing an application to build, respond with a warm, concise plain-text greeting (1 to 2 sentences) and ask what kind of Site, SaaS application, or API they want to bring to life today.',
+  'Always end your response with a question mark (?) and never output code or JSON in this conversational turn.',
+].join('\n');
+const defaultGreetingReply = 'Hi there! Welcome to prompt2app. What kind of Site, SaaS application, or API would you like to bring to life today?';
+
+export function isConversationalGreeting(prompt) {
+  if (typeof prompt !== 'string' || prompt.trim().length === 0) return false;
+  const userMatches = [...prompt.matchAll(/^User:\s*(.+)$/gim)].map((match) => match[1].trim());
+  const candidates = userMatches.length > 0 ? userMatches : [prompt.trim()];
+  return candidates.every((entry) => {
+    const normalized = entry
+      .replace(/[!?.~,;:'"`()+]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return normalized.length > 0
+      && normalized.length <= 80
+      && greetingPatterns.some((pattern) => pattern.test(normalized));
+  });
+}
+
+export async function runConversationalTurn({
+  prompt,
+  apiKey = process.env.GEMINI_API_KEY,
+  model = defaultModel,
+  fetchImpl = fetch,
+} = {}) {
+  if (typeof prompt !== 'string' || prompt.trim().length === 0) {
+    throw new TypeError('prompt must be a non-empty string');
+  }
+  if (!apiKey) throw new Error('GEMINI_API_KEY is required');
+
+  const endpoint = new URL(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+  );
+  const response = await fetchImpl(endpoint, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: conversationalInstruction }] },
+      contents: [{ parts: [{ text: prompt.trim() }] }],
+    }),
+    signal: AbortSignal.timeout(30_000),
+  });
+
+  if (!response.ok) {
+    const details = (await response.text()).slice(0, 500).replaceAll(apiKey, '[redacted]');
+    throw new Error(`Gemini request failed (${response.status}): ${details}`);
+  }
+
+  const payload = await response.json();
+  const rawText = (payload.candidates?.[0]?.content?.parts ?? [])
+    .map((part) => part.text ?? '')
+    .join('')
+    .trim();
+
+  if (!rawText || rawText.startsWith('{') || rawText.startsWith('[')) {
+    return defaultGreetingReply;
+  }
+  return rawText.includes('?') ? rawText : `${rawText} What kind of application would you like to build today?`;
+}
 const generateAppFilesTool = {
   name: 'generate_app_files',
   description: 'Generate the validated source files for the requested application. This returns file data only and does not write to disk.',

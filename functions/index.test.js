@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { PassThrough } from 'node:stream';
 import {
   generatePostgresSchema,
+  isConversationalGreeting,
   runPipeline,
   runVisionInference,
   validateAppSpec,
@@ -463,6 +464,7 @@ test('public page sends chat messages to the same-origin backend and safely hand
   assert.match(html, /window\.showDirectoryPicker\(\{ mode: 'readwrite' \}\)/);
   assert.match(html, /await writable\.write\(file\.content\)/);
   assert.match(html, /Download individual files/);
+  assert.match(html, /Preview & inspect generated code/);
   assert.match(html, /addGeneratedFilesControls\(assistantMessage\.messageContent, data\.files\)/);
   assert.match(html, /responseBubble\.textContent = data\.response/);
   assert.match(html, /class="chat-feed" id="chat-feed"[^>]*aria-live="polite"/);
@@ -691,4 +693,44 @@ test('rejects legacy collection-based data model specs', () => {
     data_models: [{ collection: 'tasks', fields: [{ name: 'title', type: 'string' }] }],
   };
   assert.ok(validateAppSpec(legacyModelSpec).length > 0);
+});
+
+test('backend responds conversationally to simple greetings without generating dummy app files', async () => {
+  assert.equal(isConversationalGreeting('hi'), true);
+  assert.equal(isConversationalGreeting('Product type: SaaS\nConversation so far:\nUser: hi'), true);
+  assert.equal(isConversationalGreeting('Hello! How are you?'), true);
+  assert.equal(isConversationalGreeting('Build a SaaS dashboard'), false);
+
+  const previousApiKey = process.env.GEMINI_API_KEY;
+  const previousFetch = globalThis.fetch;
+  process.env.GEMINI_API_KEY = 'test-gemini-key';
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    candidates: [{ content: { parts: [{ text: 'Hi there! What kind of application would you like to build today?' }] } }],
+  }));
+
+  const response = {
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    },
+  };
+
+  try {
+    await backendApi({
+      method: 'POST',
+      body: { message: 'Product type: SaaS\nConversation so far:\nUser: hi' },
+    }, response);
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.body.isConversational, true);
+    assert.deepEqual(response.body.files, []);
+    assert.match(response.body.response, /\?/);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousApiKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousApiKey;
+  }
 });

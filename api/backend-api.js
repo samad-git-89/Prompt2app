@@ -1,4 +1,8 @@
-import { runPipeline } from '../functions/index.js';
+import {
+  isConversationalGreeting,
+  runConversationalTurn,
+  runPipeline,
+} from '../functions/index.js';
 
 export default async function handler(req, res) {
   try {
@@ -14,7 +18,18 @@ export default async function handler(req, res) {
       return;
     }
 
-    const result = await runPipeline({ prompt: message.trim() });
+    const trimmedMessage = message.trim();
+    if (isConversationalGreeting(trimmedMessage)) {
+      const greetingResponse = await runConversationalTurn({ prompt: trimmedMessage });
+      res.status(200).json({
+        response: greetingResponse,
+        files: [],
+        isConversational: true,
+      });
+      return;
+    }
+
+    const result = await runPipeline({ prompt: trimmedMessage });
     if (!result.validation.valid) {
       throw new Error(`Generated files failed validation: ${result.validation.errors.join('; ')}`);
     }
@@ -22,6 +37,7 @@ export default async function handler(req, res) {
     res.status(200).json({
       response: `Generated ${result.files.length} validated files for ${result.spec.name}. Save them to a folder or download them below.`,
       files: result.files,
+      spec: result.spec,
     });
   } catch (error) {
     console.error('Backend AI request failed:', error);
