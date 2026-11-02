@@ -5,9 +5,15 @@ import {
 } from '../functions/index.js';
 
 export default async function handler(req, res) {
+  let customApiKey;
   try {
+    if (req.method === 'GET') {
+      res.status(200).json({ managedAvailable: Boolean(process.env.GEMINI_API_KEY) });
+      return;
+    }
+
     if (req.method !== 'POST') {
-      res.setHeader('Allow', ['POST']);
+      res.setHeader('Allow', ['GET', 'POST']);
       res.status(405).json({ error: `Method ${req.method} Not Allowed` });
       return;
     }
@@ -19,8 +25,29 @@ export default async function handler(req, res) {
     }
 
     const trimmedMessage = message.trim();
-    if (isConversationalGreeting(trimmedMessage)) {
-      const greetingResponse = await runConversationalTurn({ prompt: trimmedMessage });
+    const keyHeader = trimmedMessage.match(/^\[BYO_KEY:([^\]\r\n]{1,256})\]\n/);
+    if (trimmedMessage.startsWith('[BYO_KEY:') && !keyHeader) {
+      res.status(400).json({ error: 'The supplied API key header is invalid.' });
+      return;
+    }
+    if (keyHeader) {
+      customApiKey = keyHeader[1];
+      if (customApiKey.trim() !== customApiKey || /\s/.test(customApiKey)) {
+        res.status(400).json({ error: 'The supplied API key header is invalid.' });
+        return;
+      }
+    }
+    const prompt = keyHeader ? trimmedMessage.slice(keyHeader[0].length).trim() : trimmedMessage;
+    if (!prompt) {
+      res.status(400).json({ error: 'Message must contain between 1 and 4000 characters.' });
+      return;
+    }
+
+    if (isConversationalGreeting(prompt)) {
+      const greetingResponse = await runConversationalTurn({
+        prompt,
+        ...(customApiKey ? { apiKey: customApiKey } : {}),
+      });
       res.status(200).json({
         response: greetingResponse,
         files: [],
@@ -29,7 +56,10 @@ export default async function handler(req, res) {
       return;
     }
 
-    const result = await runPipeline({ prompt: trimmedMessage });
+    const result = await runPipeline({
+      prompt,
+      ...(customApiKey ? { apiKey: customApiKey } : {}),
+    });
     if (!result.validation.valid) {
       throw new Error(`Generated files failed validation: ${result.validation.errors.join('; ')}`);
     }
@@ -40,7 +70,11 @@ export default async function handler(req, res) {
       spec: result.spec,
     });
   } catch (error) {
-    console.error('Backend AI request failed:', error);
+    if (customApiKey) {
+      console.error('Backend AI request failed while using a user-supplied key.');
+    } else {
+      console.error('Backend AI request failed:', error);
+    }
     res.status(500).json({ error: 'App generation failed. Please try again.' });
   }
 }

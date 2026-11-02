@@ -42,7 +42,122 @@
             outline: 2px solid var(--blue);
             outline-offset: 3px;
         }
-        .app-shell { min-height: 100vh; }
+        .app-shell {
+            display: grid;
+            grid-template-columns: 248px minmax(0, 1fr);
+            min-height: 100vh;
+        }
+        .app-sidebar {
+            position: sticky;
+            top: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            min-height: 600px;
+            padding: 1.15rem 0.9rem 0.9rem;
+            border-right: 1px solid rgba(174, 190, 220, 0.1);
+            background: rgba(11, 15, 25, 0.92);
+        }
+        .sidebar-brand-row,
+        .sidebar-brand,
+        .sidebar-nav-button,
+        .sidebar-section-heading,
+        .sidebar-footer { display: flex; align-items: center; }
+        .sidebar-brand-row { justify-content: space-between; gap: 0.5rem; padding: 0 0.25rem 1.5rem; }
+        .sidebar-brand { gap: 0.65rem; color: #f4f6fc; text-decoration: none; font-family: Manrope, sans-serif; font-weight: 800; }
+        .sidebar-brand .brand-mark { flex: 0 0 31px; }
+        .sidebar-collapse,
+        .mobile-sidebar-toggle {
+            display: grid;
+            width: 34px;
+            height: 34px;
+            place-items: center;
+            border: 1px solid var(--line);
+            border-radius: 9px;
+            background: rgba(20, 27, 42, 0.75);
+            color: #c3cada;
+            cursor: pointer;
+        }
+        .mobile-sidebar-toggle { display: none; }
+        .sidebar-nav { display: grid; gap: 0.25rem; }
+        .sidebar-nav-button {
+            width: 100%;
+            gap: 0.7rem;
+            min-height: 40px;
+            padding: 0.55rem 0.7rem;
+            border: 1px solid transparent;
+            border-radius: 9px;
+            background: transparent;
+            color: #aab3c5;
+            cursor: pointer;
+            font-size: 0.82rem;
+            text-align: left;
+        }
+        .sidebar-nav-button:hover,
+        .sidebar-nav-button.is-active { border-color: rgba(165, 180, 252, 0.14); background: rgba(165, 180, 252, 0.08); color: #e9edff; }
+        .sidebar-nav-icon { width: 1.25rem; color: #a5b4fc; text-align: center; }
+        .keyboard-badge { margin-left: auto; color: #748096; font-size: 0.66rem; }
+        .sidebar-section { margin-top: 1.5rem; }
+        .sidebar-section-heading {
+            justify-content: space-between;
+            padding: 0 0.7rem 0.55rem;
+            color: #687489;
+            font-size: 0.66rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+        }
+        .project-filters { display: grid; gap: 0.12rem; }
+        .project-filters .sidebar-nav-button { min-height: 34px; font-size: 0.77rem; }
+        .sidebar-recents { min-height: 0; overflow: auto; }
+        .recent-list { display: grid; gap: 0.25rem; }
+        .recent-project { display: flex; align-items: center; gap: 0.2rem; min-width: 0; }
+        .recent-open {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            padding: 0.5rem 0.65rem;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: #aab3c5;
+            cursor: pointer;
+            font-size: 0.75rem;
+            text-align: left;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .recent-open:hover { background: rgba(174, 190, 220, 0.07); color: #f4f6fc; }
+        .recent-star { border: 0; background: transparent; color: #788398; cursor: pointer; }
+        .recent-star[aria-pressed="true"] { color: #fbbf24; }
+        .sidebar-empty { padding: 0.35rem 0.7rem; color: #748096; font-size: 0.72rem; line-height: 1.5; }
+        .sidebar-footer { display: grid; gap: 0.7rem; margin-top: auto; padding-top: 1rem; }
+        .upgrade-card {
+            display: grid;
+            gap: 0.45rem;
+            padding: 0.9rem;
+            border: 1px solid rgba(165, 180, 252, 0.2);
+            border-radius: 13px;
+            background: linear-gradient(145deg, rgba(89, 84, 162, 0.2), rgba(56, 189, 248, 0.07));
+            color: #e5e9ff;
+            cursor: pointer;
+            text-align: left;
+        }
+        .upgrade-card strong { font-size: 0.8rem; }
+        .upgrade-card span { color: #aab3c5; font-size: 0.7rem; line-height: 1.4; }
+        .sidebar-settings { min-height: 38px; }
+        .app-main { min-width: 0; }
+        .app-shell.sidebar-collapsed { grid-template-columns: 72px minmax(0, 1fr); }
+        .app-shell.sidebar-collapsed .app-sidebar { padding-inline: 0.6rem; }
+        .app-shell.sidebar-collapsed .sidebar-brand-row { justify-content: center; padding-inline: 0; }
+        .app-shell.sidebar-collapsed .sidebar-brand .sidebar-label,
+        .app-shell.sidebar-collapsed .sidebar-nav-button .sidebar-label,
+        .app-shell.sidebar-collapsed .sidebar-section-heading .sidebar-label,
+        .app-shell.sidebar-collapsed .upgrade-card,
+        .app-shell.sidebar-collapsed .sidebar-empty,
+        .app-shell.sidebar-collapsed .recent-star { display: none; }
+        .app-shell.sidebar-collapsed .sidebar-nav-button { justify-content: center; padding-inline: 0; }
+        .app-shell.sidebar-collapsed .recent-open { width: 100%; padding-inline: 0; text-align: center; }
+        .app-shell.sidebar-collapsed .sidebar-footer { justify-content: end; }
         .topbar {
             display: flex;
             align-items: center;
@@ -84,6 +199,7 @@
             transition: color 180ms ease;
         }
         .top-nav a:hover { color: #fff; }
+        .top-nav .pricing-trigger { width: auto; min-height: 34px; padding: 0.4rem 0.75rem; }
         .top-nav .status-link { display: inline-flex; align-items: center; gap: 0.5rem; }
         .status-dot {
             width: 7px;
@@ -625,7 +741,7 @@
             grid-template-columns: minmax(0, 1fr);
         }
         body[data-ux-state="gathering_specs"] .conversation-panel.is-visible {
-            grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+            grid-template-columns: minmax(0, 1fr) 280px;
         }
         body[data-ux-state="conversing"] .conversation-panel.is-visible,
         body[data-ux-state="gathering_specs"] .conversation-panel.is-visible {
@@ -643,7 +759,7 @@
             flex: 1;
             width: 100%;
             max-width: 100%;
-            height: calc(100vh - 285px);
+            height: calc(100vh - 250px);
             min-height: 420px;
             max-height: none;
         }
@@ -657,14 +773,14 @@
         }
         .preview-frame {
             width: 100%;
-            height: min(65vh, 620px);
+            height: min(65vh, 600px);
             min-height: 420px;
         }
         .code-viewer { max-height: min(60vh, 560px); }
         .preview-inspector.is-fullscreen-preview {
             position: fixed;
             inset: 1rem;
-            z-index: 1000;
+            z-index: 1080;
             display: flex;
             flex-direction: column;
             background: #0b0f19;
@@ -674,11 +790,191 @@
             flex: 1;
             height: calc(100vh - 7rem);
         }
+        .modal-backdrop {
+            position: fixed;
+            z-index: 1100;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            overflow-y: auto;
+            padding: 1.25rem;
+            background: rgba(3, 6, 13, 0.76);
+            backdrop-filter: blur(12px);
+        }
+        .modal-panel {
+            width: min(100%, 980px);
+            max-height: min(90vh, 900px);
+            overflow: auto;
+            padding: clamp(1.1rem, 3vw, 2rem);
+            border: 1px solid rgba(174, 190, 220, 0.18);
+            border-radius: 20px;
+            background: #111827;
+            box-shadow: 0 30px 100px rgba(0, 0, 0, 0.55);
+        }
+        .modal-panel.modal-wide { width: min(100%, 1120px); }
+        .modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+        .modal-header h2 { margin: 0 0 0.35rem; font-family: Manrope, sans-serif; font-size: clamp(1.35rem, 4vw, 1.8rem); }
+        .modal-subtitle { margin: 0; color: #929bad; font-size: 0.85rem; }
+        .modal-close {
+            flex: 0 0 38px;
+            width: 38px;
+            height: 38px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: rgba(174, 190, 220, 0.06);
+            color: #d7deeb;
+            cursor: pointer;
+        }
+        .settings-layout { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 1.5rem; min-height: 360px; }
+        .settings-nav { display: grid; align-content: start; gap: 0.35rem; }
+        .settings-nav button {
+            padding: 0.7rem 0.75rem;
+            border: 1px solid transparent;
+            border-radius: 9px;
+            background: transparent;
+            color: #aab3c5;
+            cursor: pointer;
+            font-size: 0.8rem;
+            text-align: left;
+        }
+        .settings-nav button[aria-selected="true"] { border-color: rgba(165, 180, 252, 0.15); background: rgba(165, 180, 252, 0.09); color: #e5e9ff; }
+        .settings-content { min-width: 0; }
+        .settings-content h3 { margin: 0 0 0.45rem; font-size: 1rem; }
+        .settings-description { color: #929bad; font-size: 0.78rem; line-height: 1.55; }
+        .mode-option {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.7rem;
+            margin-top: 0.7rem;
+            padding: 0.9rem;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: rgba(8, 12, 21, 0.55);
+        }
+        .mode-option input { margin-top: 0.2rem; accent-color: #a5b4fc; }
+        .mode-option strong { display: block; margin-bottom: 0.25rem; font-size: 0.82rem; }
+        .mode-option span { color: #929bad; font-size: 0.74rem; line-height: 1.45; }
+        .pro-badge { margin-left: 0.3rem; color: #c4b5fd !important; font-size: 0.62rem !important; font-weight: 700; text-transform: uppercase; }
+        .settings-field { display: grid; gap: 0.45rem; margin: 1rem 0; color: #d6dcea; font-size: 0.78rem; }
+        .settings-field input {
+            width: 100%;
+            min-height: 42px;
+            padding: 0.65rem 0.75rem;
+            border: 1px solid var(--line);
+            border-radius: 9px;
+            background: #090e18;
+            color: #f4f6fc;
+        }
+        .modal-actions { display: flex; flex-wrap: wrap; gap: 0.55rem; margin-top: 0.8rem; }
+        .modal-action {
+            min-height: 38px;
+            padding: 0.55rem 0.85rem;
+            border: 1px solid rgba(165, 180, 252, 0.25);
+            border-radius: 9px;
+            background: rgba(165, 180, 252, 0.12);
+            color: #e5e9ff;
+            cursor: pointer;
+            font-size: 0.76rem;
+        }
+        .modal-action.secondary { border-color: var(--line); background: transparent; color: #aab3c5; }
+        .settings-status { min-height: 1.2rem; margin: 0.65rem 0 0; color: #91a0bd; font-size: 0.72rem; }
+        .security-list { display: grid; gap: 0.35rem; margin: 1rem 0 0; padding: 0; color: #99c9b0; font-size: 0.74rem; list-style: none; }
+        .security-list li::before { content: "✓ "; }
+        .snapshot-list { display: grid; gap: 0.45rem; }
+        .snapshot-item { width: 100%; padding: 0.7rem; border: 1px solid var(--line); border-radius: 10px; background: rgba(8, 12, 21, 0.55); color: #c4ccda; cursor: pointer; font-size: 0.75rem; text-align: left; }
+        .snapshot-item small { display: block; margin-top: 0.25rem; color: #748096; }
+        .billing-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.9rem; margin: 1rem 0 1.5rem; }
+        .segmented-control { display: inline-flex; gap: 0.2rem; padding: 0.25rem; border: 1px solid var(--line); border-radius: 11px; background: rgba(8, 12, 21, 0.6); }
+        .segmented-control button { padding: 0.5rem 0.75rem; border: 0; border-radius: 8px; background: transparent; color: #929bad; cursor: pointer; font-size: 0.74rem; }
+        .segmented-control button[aria-pressed="true"] { background: #28334a; color: #f4f6fc; }
+        .plan-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.9rem; }
+        .plan-card { position: relative; display: flex; flex-direction: column; padding: 1.1rem; border: 1px solid var(--line); border-radius: 14px; background: rgba(8, 12, 21, 0.55); }
+        .plan-card.is-popular { border-color: rgba(165, 180, 252, 0.55); box-shadow: 0 0 35px rgba(165, 180, 252, 0.1); }
+        .plan-popular { color: #c4b5fd; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.1em; }
+        .plan-card h3 { margin: 0.4rem 0; font-size: 0.95rem; }
+        .plan-price { margin: 0.2rem 0 0.15rem; font-family: Manrope, sans-serif; font-size: 1.7rem; font-weight: 800; }
+        .plan-period { min-height: 1rem; color: #748096; font-size: 0.67rem; }
+        .plan-features { display: grid; gap: 0.65rem; margin: 1rem 0 1.2rem; padding: 0; color: #aab3c5; font-size: 0.72rem; list-style: none; }
+        .plan-features li::before { content: "✓ "; color: #99c9b0; }
+        .plan-card .modal-action { margin-top: auto; }
+        .pricing-status { min-height: 1.1rem; margin: 0.7rem 0 0; color: #929bad; font-size: 0.72rem; text-align: center; }
+        @media (max-width: 760px) {
+            .app-shell { display: block; }
+            .app-sidebar {
+                position: fixed;
+                z-index: 1050;
+                inset: 0 auto 0 0;
+                width: min(280px, 85vw);
+                height: 100dvh;
+                min-height: 0;
+                transform: translateX(-105%);
+                transition: transform 200ms ease;
+                box-shadow: 20px 0 60px rgba(0, 0, 0, 0.45);
+            }
+            .app-shell.sidebar-open .app-sidebar { transform: translateX(0); }
+            .mobile-sidebar-toggle { display: grid; }
+            .topbar { justify-content: flex-start; gap: 0.75rem; padding-inline: 1rem; }
+            .topbar > .brand { margin-right: auto; }
+            .top-nav { gap: 0.75rem; }
+            .top-nav a:not(.pricing-trigger):not(.status-link) { display: none; }
+            .main-content { width: min(100% - 1.25rem, 600px); padding-top: 3rem; }
+            .plan-grid { grid-template-columns: 1fr; }
+            .settings-layout { grid-template-columns: 1fr; gap: 0.8rem; }
+            .settings-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .settings-nav button { padding: 0.55rem; font-size: 0.7rem; text-align: center; }
+        }
+        @media (max-width: 430px) {
+            .topbar { min-height: 62px; }
+            .topbar .brand { font-size: 0.95rem; }
+            .top-nav .status-link { display: none; }
+            .modal-backdrop { padding: 0.6rem; }
+            .modal-panel { max-height: 95vh; border-radius: 15px; }
+            .billing-controls { gap: 0.45rem; }
+            .segmented-control button { padding-inline: 0.55rem; }
+        }
     </style>
 </head>
 <body>
     <div class="app-shell">
+        <aside class="app-sidebar" id="app-sidebar" aria-label="Workspace navigation">
+            <div class="sidebar-brand-row">
+                <a class="sidebar-brand" href="/" aria-label="prompt2app home">
+                    <span class="brand-mark" aria-hidden="true">✦</span>
+                    <span class="sidebar-label">prompt2app</span>
+                </a>
+                <button class="sidebar-collapse" id="sidebar-collapse" type="button" aria-label="Collapse sidebar" aria-expanded="true">‹</button>
+            </div>
+            <nav class="sidebar-nav" aria-label="Primary">
+                <button class="sidebar-nav-button is-active" type="button" data-sidebar-action="home"><span class="sidebar-nav-icon" aria-hidden="true">⌂</span><span class="sidebar-label">Home</span></button>
+                <button class="sidebar-nav-button" type="button" data-sidebar-action="search"><span class="sidebar-nav-icon" aria-hidden="true">⌕</span><span class="sidebar-label">Search</span><span class="keyboard-badge sidebar-label">Ctrl K</span></button>
+                <button class="sidebar-nav-button" type="button" data-sidebar-action="resources"><span class="sidebar-nav-icon" aria-hidden="true">▤</span><span class="sidebar-label">Resources</span></button>
+            </nav>
+            <section class="sidebar-section" aria-label="Projects">
+                <p class="sidebar-section-heading"><span class="sidebar-label">PROJECTS</span></p>
+                <nav class="project-filters" aria-label="Project filters">
+                    <button class="sidebar-nav-button is-active" type="button" data-project-filter="all"><span class="sidebar-nav-icon" aria-hidden="true">▦</span><span class="sidebar-label">All projects</span></button>
+                    <button class="sidebar-nav-button" type="button" data-project-filter="starred"><span class="sidebar-nav-icon" aria-hidden="true">☆</span><span class="sidebar-label">Starred</span></button>
+                    <button class="sidebar-nav-button" type="button" data-project-filter="created"><span class="sidebar-nav-icon" aria-hidden="true">◉</span><span class="sidebar-label">Created by me</span></button>
+                    <button class="sidebar-nav-button" type="button" data-project-filter="shared"><span class="sidebar-nav-icon" aria-hidden="true">⇄</span><span class="sidebar-label">Shared with me</span></button>
+                </nav>
+            </section>
+            <section class="sidebar-section sidebar-recents" aria-label="Recent projects">
+                <p class="sidebar-section-heading"><span class="sidebar-label">RECENTS</span></p>
+                <div class="recent-list" id="recent-projects"></div>
+                <p class="sidebar-empty" id="recent-projects-status">Generated apps appear here.</p>
+            </section>
+            <div class="sidebar-footer">
+                <button class="upgrade-card" type="button" data-open-modal="pricing-modal">
+                    <strong><span aria-hidden="true">✦ </span>Upgrade to Pro</strong>
+                    <span>Unlock more power and faster generation</span>
+                </button>
+                <button class="sidebar-nav-button sidebar-settings" type="button" data-open-modal="settings-modal"><span class="sidebar-nav-icon" aria-hidden="true">⚙</span><span class="sidebar-label">Settings</span></button>
+            </div>
+        </aside>
+
+        <div class="app-main">
         <header class="topbar">
+            <button class="mobile-sidebar-toggle" id="mobile-sidebar-toggle" type="button" aria-label="Open navigation" aria-controls="app-sidebar" aria-expanded="false">☰</button>
             <a class="brand" href="/" aria-label="prompt2app home">
                 <span class="brand-mark" aria-hidden="true">✦</span>
                 <span>prompt2app</span>
@@ -686,6 +982,7 @@
             <nav class="top-nav" aria-label="Main navigation">
                 <a href="#examples">Explore ideas</a>
                 <a href="#workspace">How it works</a>
+                <button class="sidebar-nav-button pricing-trigger" type="button" data-open-modal="pricing-modal">Upgrade</button>
                 <a class="status-link" href="#workspace"><span class="status-dot" aria-hidden="true"></span>AI workspace</a>
             </nav>
         </header>
@@ -753,6 +1050,92 @@
             </section>
             <p class="page-footnote">Made for the moment when an idea becomes <span>something real.</span></p>
         </main>
+        <div class="modal-backdrop" id="settings-modal" hidden>
+            <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title" tabindex="-1">
+                <header class="modal-header">
+                    <div><h2 id="settings-title">Project Settings</h2><p class="modal-subtitle">Configure how your projects are generated.</p></div>
+                    <button class="modal-close" type="button" data-close-modal aria-label="Close settings">×</button>
+                </header>
+                <div class="settings-layout">
+                    <nav class="settings-nav" role="tablist" aria-label="Settings sections">
+                        <button id="settings-tab-execution" type="button" role="tab" aria-selected="true" aria-controls="settings-panel-execution" data-settings-tab="execution">Execution Mode</button>
+                        <button id="settings-tab-connectors" type="button" role="tab" aria-selected="false" aria-controls="settings-panel-connectors" data-settings-tab="connectors">Connectors &amp; AI</button>
+                        <button id="settings-tab-activity" type="button" role="tab" aria-selected="false" aria-controls="settings-panel-activity" data-settings-tab="activity">Project Activity</button>
+                    </nav>
+                    <div class="settings-content">
+                        <section id="settings-panel-execution" role="tabpanel" aria-labelledby="settings-tab-execution" data-settings-panel="execution">
+                            <h3>Execution Mode</h3>
+                            <p class="settings-description">Choose which Gemini credentials power your app generation.</p>
+                            <label class="mode-option">
+                                <input type="radio" name="execution-mode" value="byo">
+                                <span><strong>BYO API Keys</strong><span>Use your own Gemini API key for full control over usage and rate limits</span></span>
+                            </label>
+                            <label class="mode-option" id="managed-mode-option">
+                                <input type="radio" name="execution-mode" value="managed">
+                                <span><strong>Managed Cloud Mode <span class="pro-badge">Upgrade to Pro</span></strong><span>Use pre-configured platform keys</span></span>
+                            </label>
+                            <p class="settings-status" id="execution-status" aria-live="polite">Checking managed cloud availability…</p>
+                        </section>
+                        <section id="settings-panel-connectors" role="tabpanel" aria-labelledby="settings-tab-connectors" data-settings-panel="connectors" hidden>
+                            <h3>Connectors &amp; AI</h3>
+                            <p class="settings-description">Your key stays in this browser session and is sent only to this app's generation endpoint.</p>
+                            <label class="settings-field" for="user-api-key-input">Google Gemini API Key
+                                <input id="user-api-key-input" type="password" maxlength="256" autocomplete="off" spellcheck="false" placeholder="Paste your Gemini API key">
+                            </label>
+                            <div class="modal-actions">
+                                <button class="modal-action" id="save-api-key" type="button">Save Key</button>
+                                <button class="modal-action secondary" id="disconnect-api-key" type="button">Disconnect</button>
+                            </div>
+                            <p class="settings-status" id="api-key-status" aria-live="polite"></p>
+                            <ul class="security-list"><li>Never exposed to third parties</li><li>Disconnect anytime</li><li>Full control over usage</li></ul>
+                        </section>
+                        <section id="settings-panel-activity" role="tabpanel" aria-labelledby="settings-tab-activity" data-settings-panel="activity" hidden>
+                            <h3>Project Activity</h3>
+                            <p class="settings-description">Generated snapshots and recent project versions are saved in this browser.</p>
+                            <div class="snapshot-list" id="project-activity-list"></div>
+                        </section>
+                    </div>
+                </div>
+            </section>
+        </div>
+        <div class="modal-backdrop" id="pricing-modal" hidden>
+            <section class="modal-panel modal-wide" role="dialog" aria-modal="true" aria-labelledby="pricing-title" tabindex="-1">
+                <header class="modal-header">
+                    <div><h2 id="pricing-title">Choose Your Plan</h2><p class="modal-subtitle">Start for free. Upgrade when you need more power.</p></div>
+                    <button class="modal-close" type="button" data-close-modal aria-label="Close pricing">×</button>
+                </header>
+                <div class="billing-controls">
+                    <div class="segmented-control" role="group" aria-label="Billing period">
+                        <button type="button" data-billing="monthly" aria-pressed="true">Monthly</button>
+                        <button type="button" data-billing="yearly" aria-pressed="false">Yearly (-17%)</button>
+                    </div>
+                    <div class="segmented-control" role="group" aria-label="Currency">
+                        <button type="button" data-currency="USD" aria-pressed="true">USD ($)</button>
+                        <button type="button" data-currency="SAR" aria-pressed="false">SAR (﷼)</button>
+                        <button type="button" data-currency="INR" aria-pressed="false">INR (₹)</button>
+                    </div>
+                </div>
+                <div class="plan-grid">
+                    <article class="plan-card" data-plan="free">
+                        <h3>Free Plan</h3><p class="plan-price" data-price="free">Free</p><p class="plan-period">No credit card required</p>
+                        <ul class="plan-features"><li>1 project</li><li>5 AI generations/mo</li><li>1 deploy/mo</li><li>BYO API key support</li></ul>
+                        <button class="modal-action secondary" type="button" data-select-plan="Free">Current plan</button>
+                    </article>
+                    <article class="plan-card" data-plan="starter">
+                        <h3>Starter Plan</h3><p class="plan-price" data-price="starter">$9</p><p class="plan-period" data-period="starter">/mo</p>
+                        <ul class="plan-features"><li>5 projects</li><li>25 AI generations/mo</li><li>5 deploys/mo</li><li>JSON &amp; ZIP export</li></ul>
+                        <button class="modal-action secondary" type="button" data-select-plan="Starter">Choose Starter</button>
+                    </article>
+                    <article class="plan-card is-popular" data-plan="pro">
+                        <span class="plan-popular">MOST POPULAR</span><h3>Pro Plan</h3><p class="plan-price" data-price="pro">$29</p><p class="plan-period" data-period="pro">/mo</p>
+                        <ul class="plan-features"><li>15 projects</li><li>100 AI generations/mo</li><li>30 deploys/mo</li><li>JSON export</li><li>GitHub &amp; Vercel deploy</li><li>Priority generation</li></ul>
+                        <button class="modal-action" type="button" data-select-plan="Pro">Choose Pro</button>
+                    </article>
+                </div>
+                <p class="pricing-status" id="pricing-status" aria-live="polite"></p>
+            </section>
+        </div>
+        </div>
     </div>
 
     <script>
@@ -768,12 +1151,496 @@
         const conversationPanel = document.getElementById('conversation-panel');
         const clarificationPane = document.getElementById('clarification-pane');
         const quickReplies = document.getElementById('quick-replies');
+        const appShell = document.querySelector('.app-shell');
+        const appSidebar = document.getElementById('app-sidebar');
+        const mobileSidebarToggle = document.getElementById('mobile-sidebar-toggle');
+        const recentProjectsList = document.getElementById('recent-projects');
+        const recentProjectsStatus = document.getElementById('recent-projects-status');
+        const settingsStatus = document.getElementById('execution-status');
+        const managedModeInput = document.querySelector('input[name="execution-mode"][value="managed"]');
+        const byoModeInput = document.querySelector('input[name="execution-mode"][value="byo"]');
+        const apiKeyInput = document.getElementById('user-api-key-input');
+        const apiKeyStatus = document.getElementById('api-key-status');
+        const recentProjectsStorageKey = 'prompt2app_recent_projects';
+        const executionModeStorageKey = 'prompt2app_execution_mode';
+        const currencyRates = { USD: 1, SAR: 3.75, INR: 83 };
+        const currencyLocales = { USD: 'en-US', SAR: 'ar-SA', INR: 'en-IN' };
         let selectedCategory = 'SaaS';
         let currentUXState = 'idle';
         let hasConversationStarted = false;
         let hasGeneratedAnyApp = false;
         let latestSpec = null;
+        let managedCloudAvailable = false;
+        let executionMode = readSessionValue(executionModeStorageKey) || 'managed';
+        let activeProjectFilter = 'all';
+        let activeModal = null;
+        let modalReturnFocus = null;
+        let activeRequestId = 0;
+        let recentProjects = readRecentProjects();
         const conversationHistory = [];
+        managedModeInput.checked = executionMode === 'managed';
+        byoModeInput.checked = executionMode === 'byo';
+
+        function setMobileSidebarOpen(isOpen) {
+            const isMobile = window.matchMedia('(max-width: 760px)').matches;
+            const open = isMobile && isOpen;
+            appShell.classList.toggle('sidebar-open', open);
+            mobileSidebarToggle.setAttribute('aria-expanded', String(open));
+            appSidebar.inert = isMobile && !open;
+            appSidebar.setAttribute('aria-hidden', String(isMobile && !open));
+            if (isMobile && !open && appSidebar.contains(document.activeElement)) {
+                mobileSidebarToggle.focus();
+            }
+        }
+
+        function readSessionValue(key) {
+            try {
+                return sessionStorage.getItem(key);
+            } catch {
+                console.error('Could not access session storage.');
+                return null;
+            }
+        }
+
+        function writeSessionValue(key, value) {
+            try {
+                sessionStorage.setItem(key, value);
+                return true;
+            } catch {
+                console.error('Could not write session storage.');
+                return false;
+            }
+        }
+
+        function readRecentProjects() {
+            try {
+                const stored = localStorage.getItem(recentProjectsStorageKey);
+                if (!stored) return [];
+                const parsed = JSON.parse(stored);
+                if (!Array.isArray(parsed)) throw new TypeError('Saved recent projects must be a list.');
+                return parsed.filter((project) =>
+                    project
+                    && typeof project.id === 'string'
+                    && typeof project.name === 'string'
+                    && Array.isArray(project.files)
+                    && validateGeneratedFiles(project.files))
+                    .map((project) => ({
+                        ...project,
+                        versions: Array.isArray(project.versions)
+                            ? project.versions.filter((version) =>
+                                version
+                                && typeof version.id === 'string'
+                                && Array.isArray(version.files)
+                                && validateGeneratedFiles(version.files))
+                            : [],
+                    }));
+            } catch (error) {
+                console.error('Could not load recent projects:', error);
+                recentProjectsStatus.textContent = 'Could not load saved projects from this browser.';
+                return [];
+            }
+        }
+
+        function persistRecentProjects() {
+            while (recentProjects.length > 0) {
+                try {
+                    localStorage.setItem(recentProjectsStorageKey, JSON.stringify(recentProjects));
+                    recentProjectsStatus.textContent = recentProjects.length
+                        ? `${recentProjects.length} saved project${recentProjects.length === 1 ? '' : 's'}`
+                        : 'Generated apps appear here.';
+                    renderRecentProjects();
+                    renderProjectActivity();
+                    return true;
+                } catch (error) {
+                    const projectWithHistory = [...recentProjects].reverse().find((project) => project.versions?.length > 1);
+                    if (projectWithHistory) {
+                        projectWithHistory.versions = projectWithHistory.versions.slice(0, -1);
+                        continue;
+                    }
+                    if (recentProjects.length === 1) {
+                        console.error('Could not save generated project to browser storage:', error);
+                        recentProjectsStatus.textContent = 'This project is too large to save in browser storage.';
+                        renderRecentProjects();
+                        renderProjectActivity();
+                        return false;
+                    }
+                    recentProjects.pop();
+                }
+            }
+            try {
+                localStorage.setItem(recentProjectsStorageKey, '[]');
+            } catch (error) {
+                console.error('Could not update saved projects in browser storage:', error);
+            }
+            recentProjectsStatus.textContent = 'Generated apps appear here.';
+            renderRecentProjects();
+            renderProjectActivity();
+            return true;
+        }
+
+        function saveRecentProject(files, spec) {
+            const projectName = typeof spec?.name === 'string' && spec.name ? spec.name : 'Untitled app';
+            const previousProject = recentProjects.find((item) => item.name === projectName);
+            const createdAt = new Date().toISOString();
+            const project = {
+                id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                name: projectName,
+                category: selectedCategory,
+                files,
+                spec: spec ?? null,
+                createdAt,
+                starred: previousProject?.starred === true,
+                versions: [
+                    ...(previousProject ? [{
+                        id: previousProject.id,
+                        name: previousProject.name,
+                        category: previousProject.category,
+                        files: previousProject.files,
+                        spec: previousProject.spec,
+                        createdAt: previousProject.createdAt,
+                    }] : []),
+                    ...(previousProject?.versions ?? []),
+                ].filter((version) => version.id && Array.isArray(version.files)).slice(0, 4),
+            };
+            recentProjects = [project, ...recentProjects.filter((item) => item.name !== project.name)].slice(0, 10);
+            return persistRecentProjects();
+        }
+
+        function renderRecentProjects() {
+            recentProjectsList.replaceChildren();
+            const projects = recentProjects.filter((project) => {
+                if (activeProjectFilter === 'starred') return project.starred === true;
+                if (activeProjectFilter === 'shared') return project.shared === true;
+                return true;
+            });
+            if (projects.length === 0) {
+                const empty = document.createElement('span');
+                empty.className = 'sidebar-empty';
+                empty.textContent = activeProjectFilter === 'shared'
+                    ? 'Projects shared with you will appear here.'
+                    : activeProjectFilter === 'starred'
+                        ? 'Star a project to find it here.'
+                        : 'Generated apps appear here.';
+                recentProjectsList.appendChild(empty);
+                return;
+            }
+            for (const project of projects) {
+                const row = document.createElement('div');
+                row.className = 'recent-project';
+                const openButton = document.createElement('button');
+                openButton.className = 'recent-open';
+                openButton.type = 'button';
+                openButton.textContent = project.name;
+                openButton.title = project.name;
+                openButton.addEventListener('click', () => restoreProject(project));
+                const starButton = document.createElement('button');
+                starButton.className = 'recent-star';
+                starButton.type = 'button';
+                starButton.textContent = project.starred ? '★' : '☆';
+                starButton.setAttribute('aria-label', `${project.starred ? 'Unstar' : 'Star'} ${project.name}`);
+                starButton.setAttribute('aria-pressed', String(project.starred === true));
+                starButton.addEventListener('click', () => {
+                    recentProjects = recentProjects.map((item) =>
+                        item.id === project.id ? { ...item, starred: !item.starred } : item);
+                    persistRecentProjects();
+                });
+                row.append(openButton, starButton);
+                recentProjectsList.appendChild(row);
+            }
+        }
+
+        function renderProjectActivity() {
+            const activityList = document.getElementById('project-activity-list');
+            if (!activityList) return;
+            activityList.replaceChildren();
+            if (recentProjects.length === 0) {
+                const empty = document.createElement('p');
+                empty.className = 'settings-description';
+                empty.textContent = 'No generated snapshots yet.';
+                activityList.appendChild(empty);
+                return;
+            }
+            for (const project of recentProjects) {
+                const versions = [
+                    { id: project.id, name: project.name, category: project.category, files: project.files, spec: project.spec, createdAt: project.createdAt },
+                    ...(project.versions ?? []),
+                ];
+                versions.forEach((version, index) => {
+                    const item = document.createElement('button');
+                    item.className = 'snapshot-item';
+                    item.type = 'button';
+                    item.textContent = `${project.name} · Version ${versions.length - index}`;
+                    const details = document.createElement('small');
+                    const timestamp = new Date(version.createdAt);
+                    details.textContent = `${version.files.length} files · ${Number.isNaN(timestamp.getTime()) ? 'Saved recently' : timestamp.toLocaleString()}`;
+                    item.appendChild(details);
+                    item.addEventListener('click', () => {
+                        restoreProject(version);
+                        closeModal();
+                        chatInput.focus();
+                    });
+                    activityList.appendChild(item);
+                });
+            }
+        }
+
+        function restoreProject(project) {
+            if (!validateGeneratedFiles(project.files)) {
+                recentProjectsStatus.textContent = 'This saved project contains invalid files and cannot be previewed.';
+                return;
+            }
+            activeRequestId += 1;
+            chatFeed.replaceChildren();
+            conversationHistory.length = 0;
+            sendButton.disabled = false;
+            followupSubmit.disabled = false;
+            latestSpec = project.spec;
+            selectedCategory = project.category || 'SaaS';
+            document.querySelectorAll('.category-tag').forEach((tag) => {
+                tag.setAttribute('aria-pressed', String(tag.dataset.category === selectedCategory));
+            });
+            addMessageToFeed(`Reopened ${project.name}`, true);
+            const assistantMessage = addMessageToFeed(`${project.name} is ready to preview.`, false);
+            addResponseUtilities(assistantMessage.messageContent, assistantMessage.bubble.textContent);
+            addGeneratedFilesControls(assistantMessage.messageContent, project.files);
+            hasGeneratedAnyApp = true;
+            hasConversationStarted = true;
+            setUXState('conversing');
+            setMobileSidebarOpen(false);
+        }
+
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (!modal) return;
+            modalReturnFocus = document.activeElement;
+            modal.hidden = false;
+            activeModal = modal;
+            modal.querySelector('[role="dialog"]').focus();
+            if (modalId === 'settings-modal') {
+                apiKeyInput.value = readSessionValue('byo_gemini_key') || '';
+                renderProjectActivity();
+            }
+        }
+
+        function closeModal() {
+            if (!activeModal) return;
+            activeModal.hidden = true;
+            activeModal = null;
+            if (modalReturnFocus instanceof HTMLElement) modalReturnFocus.focus();
+        }
+
+        function renderPlanPrices() {
+            const currency = document.querySelector('[data-currency][aria-pressed="true"]')?.dataset.currency || 'USD';
+            const yearly = document.querySelector('[data-billing="yearly"]')?.getAttribute('aria-pressed') === 'true';
+            const formatter = new Intl.NumberFormat(currencyLocales[currency], {
+                style: 'currency',
+                currency,
+                maximumFractionDigits: 0,
+            });
+            for (const plan of ['starter', 'pro']) {
+                const basePrice = plan === 'starter' ? 9 : 29;
+                const monthlyPrice = basePrice * currencyRates[currency] * (yearly ? 0.83 : 1);
+                document.querySelector(`[data-price="${plan}"]`).textContent = formatter.format(monthlyPrice);
+                document.querySelector(`[data-period="${plan}"]`).textContent = yearly ? '/mo, billed yearly' : '/mo';
+            }
+        }
+
+        async function loadManagedAvailability() {
+            try {
+                const response = await fetch('/api/backend-api', { method: 'GET' });
+                const data = await response.json();
+                if (!response.ok || typeof data.managedAvailable !== 'boolean') {
+                    throw new Error(data.error || 'Could not determine managed cloud availability.');
+                }
+                managedCloudAvailable = data.managedAvailable;
+                managedModeInput.disabled = !managedCloudAvailable;
+                if (!managedCloudAvailable && executionMode === 'managed') executionMode = 'byo';
+                if (!readSessionValue(executionModeStorageKey)) {
+                    executionMode = managedCloudAvailable ? 'managed' : 'byo';
+                }
+                if (executionMode === 'managed' && !managedCloudAvailable) executionMode = 'byo';
+                managedModeInput.checked = executionMode === 'managed';
+                byoModeInput.checked = executionMode === 'byo';
+                settingsStatus.textContent = managedCloudAvailable
+                    ? 'Managed Cloud Mode is available for this project.'
+                    : 'Managed Cloud Mode is unavailable. Connect your own key to generate apps.';
+            } catch (error) {
+                console.error('Could not load execution mode settings:', error);
+                managedModeInput.disabled = true;
+                managedModeInput.checked = false;
+                executionMode = 'byo';
+                byoModeInput.checked = true;
+                settingsStatus.textContent = 'Could not check managed cloud availability. Use your own API key.';
+            }
+        }
+
+        document.querySelectorAll('[data-open-modal]').forEach((button) => {
+            button.addEventListener('click', () => openModal(button.dataset.openModal));
+        });
+        document.querySelectorAll('[data-close-modal]').forEach((button) => {
+            button.addEventListener('click', closeModal);
+        });
+        document.querySelectorAll('.modal-backdrop').forEach((modal) => {
+            modal.addEventListener('click', (event) => {
+                if (event.target === modal) closeModal();
+            });
+            modal.querySelector('[role="dialog"]').addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') {
+                    closeModal();
+                    return;
+                }
+                if (event.key !== 'Tab') return;
+                const controls = [...modal.querySelectorAll('button:not(:disabled), input:not(:disabled), [tabindex="0"]')]
+                    .filter((control) => !control.closest('[hidden]'));
+                if (controls.length === 0) return;
+                const first = controls[0];
+                const last = controls.at(-1);
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            });
+        });
+        document.querySelectorAll('[data-settings-tab]').forEach((tab) => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('[data-settings-tab]').forEach((item) => {
+                    item.setAttribute('aria-selected', String(item === tab));
+                });
+                document.querySelectorAll('[data-settings-panel]').forEach((panel) => {
+                    panel.hidden = panel.dataset.settingsPanel !== tab.dataset.settingsTab;
+                });
+                if (tab.dataset.settingsTab === 'activity') renderProjectActivity();
+            });
+        });
+        document.querySelectorAll('input[name="execution-mode"]').forEach((input) => {
+            input.addEventListener('change', () => {
+                if (input.checked && (input.value !== 'managed' || managedCloudAvailable)) {
+                    executionMode = input.value;
+                    writeSessionValue(executionModeStorageKey, executionMode);
+                }
+            });
+        });
+        document.getElementById('save-api-key').addEventListener('click', () => {
+            const key = apiKeyInput.value.trim();
+            if (!key || key.length > 256 || /\s/.test(key) || /[\]\r\n]/.test(key)) {
+                apiKeyStatus.textContent = 'Enter a valid Gemini API key to save.';
+                return;
+            }
+            if (!writeSessionValue('byo_gemini_key', key)) {
+                apiKeyStatus.textContent = 'Could not save the key in this browser session.';
+                return;
+            }
+            executionMode = 'byo';
+            byoModeInput.checked = true;
+            writeSessionValue(executionModeStorageKey, executionMode);
+            apiKeyStatus.textContent = 'API key saved for this browser session.';
+        });
+        document.getElementById('disconnect-api-key').addEventListener('click', () => {
+            try {
+                sessionStorage.removeItem('byo_gemini_key');
+                apiKeyInput.value = '';
+                apiKeyStatus.textContent = 'API key disconnected from this browser session.';
+                if (managedCloudAvailable) {
+                    executionMode = 'managed';
+                    managedModeInput.checked = true;
+                    writeSessionValue(executionModeStorageKey, executionMode);
+                }
+            } catch {
+                console.error('Could not remove the saved API key.');
+                apiKeyStatus.textContent = 'Could not disconnect the saved key from this browser.';
+            }
+        });
+        document.querySelectorAll('[data-billing]').forEach((button) => {
+            button.addEventListener('click', () => {
+                document.querySelectorAll('[data-billing]').forEach((item) => {
+                    item.setAttribute('aria-pressed', String(item === button));
+                });
+                renderPlanPrices();
+            });
+        });
+        document.querySelectorAll('[data-currency]').forEach((button) => {
+            button.addEventListener('click', () => {
+                document.querySelectorAll('[data-currency]').forEach((item) => {
+                    item.setAttribute('aria-pressed', String(item === button));
+                });
+                renderPlanPrices();
+            });
+        });
+        document.querySelectorAll('[data-select-plan]').forEach((button) => {
+            button.addEventListener('click', () => {
+                document.getElementById('pricing-status').textContent =
+                    `${button.dataset.selectPlan} plan selection is not connected to billing yet.`;
+            });
+        });
+        document.querySelectorAll('[data-project-filter]').forEach((button) => {
+            button.addEventListener('click', () => {
+                activeProjectFilter = button.dataset.projectFilter;
+                document.querySelectorAll('[data-project-filter]').forEach((filter) => {
+                    filter.classList.toggle('is-active', filter === button);
+                });
+                renderRecentProjects();
+            });
+        });
+        function resetWorkspaceView() {
+            activeRequestId += 1;
+            chatFeed.replaceChildren();
+            conversationHistory.length = 0;
+            chatInput.value = '';
+            followupInput.value = '';
+            sendButton.disabled = false;
+            followupSubmit.disabled = false;
+            hasGeneratedAnyApp = false;
+            hasConversationStarted = false;
+            latestSpec = null;
+            currentUXState = 'idle';
+            document.body.dataset.uxState = currentUXState;
+            setUXState(currentUXState);
+            setMobileSidebarOpen(false);
+        }
+        document.querySelector('[data-sidebar-action="home"]').addEventListener('click', () => {
+            resetWorkspaceView();
+            workspace.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            chatInput.focus();
+        });
+        document.querySelector('[data-sidebar-action="search"]').addEventListener('click', () => {
+            setMobileSidebarOpen(false);
+            chatInput.focus();
+        });
+        document.querySelector('[data-sidebar-action="resources"]').addEventListener('click', () => {
+            if (hasConversationStarted) resetWorkspaceView();
+            setMobileSidebarOpen(false);
+            document.getElementById('examples').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+        document.getElementById('sidebar-collapse').addEventListener('click', (event) => {
+            if (window.matchMedia('(max-width: 760px)').matches) {
+                setMobileSidebarOpen(false);
+                return;
+            }
+            const collapsed = appShell.classList.toggle('sidebar-collapsed');
+            event.currentTarget.setAttribute('aria-expanded', String(!collapsed));
+            event.currentTarget.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+        });
+        mobileSidebarToggle.addEventListener('click', () => {
+            setMobileSidebarOpen(!appShell.classList.contains('sidebar-open'));
+        });
+        setMobileSidebarOpen(false);
+        window.addEventListener('resize', () => setMobileSidebarOpen(false));
+        document.addEventListener('keydown', (event) => {
+            if (!activeModal && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+                event.preventDefault();
+                chatInput.focus();
+            }
+            if (event.key === 'Escape' && appShell.classList.contains('sidebar-open')) {
+                setMobileSidebarOpen(false);
+            }
+        });
+        renderRecentProjects();
+        renderProjectActivity();
+        renderPlanPrices();
+        void loadManagedAvailability();
 
         function setUXState(nextState) {
             currentUXState = nextState;
@@ -1116,12 +1983,26 @@
             const specContext = latestSpec
                 ? `\nCurrent AppSpec: ${JSON.stringify(latestSpec)}`
                 : '';
-            return `Product type: ${selectedCategory}\nConversation so far:\n${transcript}${specContext}`.slice(-3900);
+            const prompt = `Product type: ${selectedCategory}\nConversation so far:\n${transcript}${specContext}`.slice(-3900);
+            const key = executionMode === 'byo' ? readSessionValue('byo_gemini_key') : null;
+            if (!key) return prompt;
+            if (key.length > 256 || /\s|\]|\r|\n/.test(key)) {
+                throw new Error('The saved Gemini API key is invalid. Update it in Project Settings.');
+            }
+            const keyHeader = `[BYO_KEY:${key}]\n`;
+            return `${keyHeader}${prompt.slice(-(3900 - keyHeader.length))}`;
         }
 
         async function sendMessage(messageText, input, submitButton) {
             const message = (messageText ?? input.value).trim();
             if (!message || submitButton.disabled) return;
+            if (executionMode === 'byo' && !readSessionValue('byo_gemini_key')) {
+                openModal('settings-modal');
+                document.querySelector('[data-settings-tab="connectors"]').click();
+                apiKeyStatus.textContent = 'Connect a Gemini API key before starting generation.';
+                return;
+            }
+            const requestId = ++activeRequestId;
             conversationHistory.push({ role: 'user', content: message });
             addMessageToFeed(message, true);
             const assistantMessage = addMessageToFeed('Thinking through your idea…', false);
@@ -1130,6 +2011,7 @@
             sendButton.disabled = true;
             followupSubmit.disabled = true;
             followupStatus.textContent = 'Thinking through your idea…';
+            hasConversationStarted = true;
             setUXState(currentUXState === 'idle' ? 'conversing' : currentUXState);
             try {
                 const response = await fetch('/api/backend-api', {
@@ -1144,6 +2026,7 @@
                 } catch {
                     throw new Error('The app server returned an unexpected response. Please try again later.');
                 }
+                if (requestId !== activeRequestId) return;
                 if (!response.ok) {
                     throw new Error(data.error || data.response || `Request failed (${response.status}).`);
                 }
@@ -1163,6 +2046,10 @@
                     hasGeneratedAnyApp = true;
                     latestSpec = data.spec;
                     addGeneratedFilesControls(assistantMessage.messageContent, data.files);
+                    if (!saveRecentProject(data.files, data.spec)) {
+                        assistantMessage.messageContent.querySelector('.generated-files-status').textContent =
+                            'The app was generated, but could not be saved to Recent projects.';
+                    }
                 }
                 hasConversationStarted = true;
                 if (data.response.includes('?')) {
@@ -1174,6 +2061,7 @@
                     followupStatus.textContent = 'Add another detail whenever you are ready.';
                 }
             } catch (error) {
+                if (requestId !== activeRequestId) return;
                 console.error('Error sending message to assistant:', error);
                 responseBubble.textContent = `Sorry, I couldn't get a response just now. ${error.message}`;
                 addResponseUtilities(assistantMessage.messageContent, responseBubble.textContent);
@@ -1181,10 +2069,12 @@
                 setUXState('conversing');
                 followupStatus.textContent = 'You can try sending your message again.';
             } finally {
-                sendButton.disabled = false;
-                followupSubmit.disabled = false;
-                followupInput.focus();
-                scrollConversationToBottom();
+                if (requestId === activeRequestId) {
+                    sendButton.disabled = false;
+                    followupSubmit.disabled = false;
+                    followupInput.focus();
+                    scrollConversationToBottom();
+                }
             }
         }
 

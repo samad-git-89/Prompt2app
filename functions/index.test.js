@@ -541,6 +541,113 @@ test('backend route generates files through a forced tool call and returns them 
   }
 });
 
+test('backend uses a supplied BYO Gemini key without forwarding its header as prompt text', async () => {
+  const previousApiKey = process.env.GEMINI_API_KEY;
+  const previousFetch = globalThis.fetch;
+  process.env.GEMINI_API_KEY = 'managed-test-key';
+  const userApiKey = 'user-gemini-test-key';
+  const requests = [];
+  const responses = [
+    jsonResponse(validSpec),
+    functionCallResponse('generate_app_files', { files: safeFiles }),
+  ];
+  globalThis.fetch = async (url, options) => {
+    const request = url instanceof Request ? url : new Request(url, options);
+    requests.push({
+      headers: Object.fromEntries(request.headers.entries()),
+      body: JSON.parse(await request.clone().text()),
+    });
+    return responses.shift();
+  };
+  const response = {
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    },
+  };
+
+  try {
+    await backendApi({
+      method: 'POST',
+      body: { message: `[BYO_KEY:${userApiKey}]\nBuild a dashboard` },
+    }, response);
+    assert.equal(response.statusCode, 200);
+    assert.equal(requests[0].headers['x-goog-api-key'], userApiKey);
+    assert.match(JSON.stringify(requests[0].body), /Build a dashboard/);
+    assert.doesNotMatch(JSON.stringify(requests[0].body), /\[BYO_KEY:|user-gemini-test-key/);
+
+    globalThis.fetch = async (url, options) => {
+      const request = url instanceof Request ? url : new Request(url, options);
+      requests.push({
+        headers: Object.fromEntries(request.headers.entries()),
+        body: JSON.parse(await request.clone().text()),
+      });
+      return new Response(JSON.stringify({
+        candidates: [{ content: { parts: [{ text: 'Hi! What would you like to make?' }] } }],
+      }));
+    };
+    const greetingResponse = {
+      status(code) {
+        this.statusCode = code;
+        return this;
+      },
+      json(body) {
+        this.body = body;
+        return this;
+      },
+    };
+    await backendApi({
+      method: 'POST',
+      body: { message: `[BYO_KEY:${userApiKey}]\nConversation so far:\nUser: hi` },
+    }, greetingResponse);
+    assert.equal(greetingResponse.statusCode, 200);
+    assert.equal(requests[2].headers['x-goog-api-key'], userApiKey);
+    assert.doesNotMatch(JSON.stringify(requests[2].body), /\[BYO_KEY:|user-gemini-test-key/);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousApiKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousApiKey;
+  }
+});
+
+test('backend does not log BYO API keys when a generation request fails', async () => {
+  const previousFetch = globalThis.fetch;
+  const previousConsoleError = console.error;
+  const userApiKey = 'user-gemini-secret';
+  const logOutput = [];
+  globalThis.fetch = async () => {
+    throw new Error(`Request failed for ${userApiKey}`);
+  };
+  console.error = (...args) => logOutput.push(args.join(' '));
+  const response = {
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    },
+  };
+
+  try {
+    await backendApi({
+      method: 'POST',
+      body: { message: `[BYO_KEY:${userApiKey}]\nHello` },
+    }, response);
+    assert.equal(response.statusCode, 500);
+    assert.equal(logOutput.length, 1);
+    assert.doesNotMatch(logOutput.join('\n'), new RegExp(userApiKey));
+  } finally {
+    globalThis.fetch = previousFetch;
+    console.error = previousConsoleError;
+  }
+});
+
 test('backend compiles detailed app requests on the first turn', async () => {
   const previousApiKey = process.env.GEMINI_API_KEY;
   const previousFetch = globalThis.fetch;
@@ -643,6 +750,31 @@ test('backend route rejects invalid messages and reports missing Gemini configur
     await backendApi({ method: 'POST', body: { message: 'Hello' } }, missingKeyResponse);
     assert.equal(missingKeyResponse.statusCode, 500);
     assert.deepEqual(missingKeyResponse.body, { error: 'App generation failed. Please try again.' });
+  } finally {
+    if (previousApiKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousApiKey;
+  }
+});
+
+test('backend reports managed cloud availability without disclosing the configured key', async () => {
+  const previousApiKey = process.env.GEMINI_API_KEY;
+  const response = {
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    },
+  };
+
+  try {
+    process.env.GEMINI_API_KEY = 'managed-secret-test-key';
+    await backendApi({ method: 'GET' }, response);
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.body, { managedAvailable: true });
+    assert.doesNotMatch(JSON.stringify(response.body), /managed-secret-test-key/);
   } finally {
     if (previousApiKey === undefined) delete process.env.GEMINI_API_KEY;
     else process.env.GEMINI_API_KEY = previousApiKey;
