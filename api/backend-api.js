@@ -8,7 +8,13 @@ export default async function handler(req, res) {
   let customApiKey;
   try {
     if (req.method === 'GET') {
-      res.status(200).json({ managedAvailable: Boolean(process.env.GEMINI_API_KEY) });
+      res.status(200).json({
+        managedAvailable: Boolean(process.env.GEMINI_API_KEY),
+        checkoutUrls: {
+          starter: process.env.CHECKOUT_URL_STARTER || null,
+          pro: process.env.CHECKOUT_URL_PRO || null,
+        },
+      });
       return;
     }
 

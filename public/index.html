@@ -131,6 +131,16 @@
         .recent-star[aria-pressed="true"] { color: #fbbf24; }
         .sidebar-empty { padding: 0.35rem 0.7rem; color: #748096; font-size: 0.72rem; line-height: 1.5; }
         .sidebar-footer { display: grid; gap: 0.7rem; margin-top: auto; padding-top: 1rem; }
+        .usage-pill {
+            display: block;
+            padding: 0.55rem 0.7rem;
+            border: 1px solid rgba(94, 234, 212, 0.16);
+            border-radius: 10px;
+            background: rgba(15, 118, 110, 0.12);
+            color: #a7d8d1;
+            font-size: 0.68rem;
+            line-height: 1.4;
+        }
         .upgrade-card {
             display: grid;
             gap: 0.45rem;
@@ -898,6 +908,23 @@
         .plan-features li::before { content: "✓ "; color: #99c9b0; }
         .plan-card .modal-action { margin-top: auto; }
         .pricing-status { min-height: 1.1rem; margin: 0.7rem 0 0; color: #929bad; font-size: 0.72rem; text-align: center; }
+        .api-keys-callout {
+            margin: 1rem 0;
+            padding: 0.9rem 1rem;
+            border: 1px solid rgba(45, 212, 191, 0.24);
+            border-radius: 12px;
+            background: rgba(15, 118, 110, 0.14);
+            color: #c9e8e4;
+            font-size: 0.8rem;
+            line-height: 1.55;
+        }
+        .api-keys-callout strong { display: block; margin-bottom: 0.25rem; color: #e4fffa; }
+        .provider-list { display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0.6rem 0 1rem; padding: 0; list-style: none; }
+        .provider-list li { padding: 0.4rem 0.6rem; border: 1px solid var(--line); border-radius: 999px; color: #c5d0df; font-size: 0.7rem; }
+        .provider-list .recommended { border-color: rgba(45, 212, 191, 0.35); color: #9de1d6; }
+        .provider-list .roadmap { color: #929bad; }
+        .checkout-actions { display: flex; justify-content: center; margin-top: 0.65rem; }
+        .checkout-actions[hidden] { display: none; }
         @media (max-width: 760px) {
             .app-shell { display: block; }
             .app-sidebar {
@@ -964,6 +991,7 @@
                 <p class="sidebar-empty" id="recent-projects-status">Generated apps appear here.</p>
             </section>
             <div class="sidebar-footer">
+                <p class="usage-pill" id="usage-pill" aria-live="polite"></p>
                 <button class="upgrade-card" type="button" data-open-modal="pricing-modal">
                     <strong><span aria-hidden="true">✦ </span>Upgrade to Pro</strong>
                     <span>Unlock more power and faster generation</span>
@@ -1133,6 +1161,37 @@
                     </article>
                 </div>
                 <p class="pricing-status" id="pricing-status" aria-live="polite"></p>
+                <div class="checkout-actions" id="checkout-actions" hidden>
+                    <button class="modal-action secondary" id="checkout-byo-action" type="button">Switch to BYO API Keys for free unlimited usage</button>
+                </div>
+            </section>
+        </div>
+        <div class="modal-backdrop" id="api-keys-required-modal" hidden>
+            <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="api-keys-required-title" tabindex="-1">
+                <header class="modal-header">
+                    <div><h2 id="api-keys-required-title">API Keys Required</h2><p class="modal-subtitle">Connect a provider key to continue generating apps.</p></div>
+                    <button class="modal-close" type="button" data-close-modal aria-label="Close API keys required dialog">×</button>
+                </header>
+                <div class="api-keys-callout">
+                    <strong>Why do I need to add API keys?</strong>
+                    Connecting your own key gives you full control over your usage, costs, and rate limits.
+                </div>
+                <h3>Supported AI Providers</h3>
+                <ul class="provider-list">
+                    <li class="recommended">Google Gemini — Supported &amp; Recommended</li>
+                    <li class="roadmap">Anthropic (Claude) — Compatibility roadmap</li>
+                    <li class="roadmap">OpenAI — Compatibility roadmap</li>
+                </ul>
+                <h3>Your Keys Are Secure</h3>
+                <ul class="security-list">
+                    <li>Stored in your browser session</li>
+                    <li>Stripped before logging</li>
+                    <li>Disconnect anytime</li>
+                </ul>
+                <div class="modal-actions">
+                    <button class="modal-action" id="api-keys-go-to-settings" type="button">Go to Settings →</button>
+                    <button class="modal-action secondary" type="button" data-close-modal>Cancel</button>
+                </div>
             </section>
         </div>
         </div>
@@ -1161,8 +1220,11 @@
         const byoModeInput = document.querySelector('input[name="execution-mode"][value="byo"]');
         const apiKeyInput = document.getElementById('user-api-key-input');
         const apiKeyStatus = document.getElementById('api-key-status');
+        const usagePill = document.getElementById('usage-pill');
         const recentProjectsStorageKey = 'prompt2app_recent_projects';
         const executionModeStorageKey = 'prompt2app_execution_mode';
+        const generationCountStorageKey = 'prompt2app_generation_count';
+        const managedGenerationLimit = 5;
         const currencyRates = { USD: 1, SAR: 3.75, INR: 83 };
         const currencyLocales = { USD: 'en-US', SAR: 'ar-SA', INR: 'en-IN' };
         let selectedCategory = 'SaaS';
@@ -1171,6 +1233,9 @@
         let hasGeneratedAnyApp = false;
         let latestSpec = null;
         let managedCloudAvailable = false;
+        let managedAvailabilityLoaded = false;
+        let checkoutUrls = { starter: null, pro: null };
+        let generationCount = readGenerationCount();
         let executionMode = readSessionValue(executionModeStorageKey) || 'managed';
         let activeProjectFilter = 'all';
         let activeModal = null;
@@ -1200,6 +1265,51 @@
                 console.error('Could not access session storage.');
                 return null;
             }
+        }
+
+        function readGenerationCount() {
+            try {
+                const stored = localStorage.getItem(generationCountStorageKey);
+                if (stored === null) return 0;
+                const count = Number(stored);
+                if (!Number.isSafeInteger(count) || count < 0) {
+                    throw new TypeError('Saved generation count must be a non-negative integer.');
+                }
+                return count;
+            } catch (error) {
+                console.error('Could not read the saved generation count:', error);
+                return 0;
+            }
+        }
+
+        function hasSavedApiKey() {
+            return Boolean(readSessionValue('byo_gemini_key'));
+        }
+
+        function renderUsagePill() {
+            usagePill.textContent = executionMode === 'byo' && hasSavedApiKey()
+                ? 'BYO Key Mode · Unlimited'
+                : `Managed Generations: ${generationCount} / ${managedGenerationLimit} Free`;
+        }
+
+        function recordGeneration() {
+            generationCount += 1;
+            try {
+                localStorage.setItem(generationCountStorageKey, String(generationCount));
+            } catch (error) {
+                console.error('Could not save the generation count:', error);
+                usagePill.textContent = 'Usage tracking unavailable';
+                return;
+            }
+            renderUsagePill();
+        }
+
+        function setExecutionMode(mode) {
+            executionMode = mode;
+            managedModeInput.checked = mode === 'managed';
+            byoModeInput.checked = mode === 'byo';
+            writeSessionValue(executionModeStorageKey, executionMode);
+            renderUsagePill();
         }
 
         function writeSessionValue(key, value) {
@@ -1453,6 +1563,11 @@
                     throw new Error(data.error || 'Could not determine managed cloud availability.');
                 }
                 managedCloudAvailable = data.managedAvailable;
+                managedAvailabilityLoaded = true;
+                checkoutUrls = {
+                    starter: typeof data.checkoutUrls?.starter === 'string' ? data.checkoutUrls.starter : null,
+                    pro: typeof data.checkoutUrls?.pro === 'string' ? data.checkoutUrls.pro : null,
+                };
                 managedModeInput.disabled = !managedCloudAvailable;
                 if (!managedCloudAvailable && executionMode === 'managed') executionMode = 'byo';
                 if (!readSessionValue(executionModeStorageKey)) {
@@ -1464,13 +1579,16 @@
                 settingsStatus.textContent = managedCloudAvailable
                     ? 'Managed Cloud Mode is available for this project.'
                     : 'Managed Cloud Mode is unavailable. Connect your own key to generate apps.';
+                renderUsagePill();
             } catch (error) {
                 console.error('Could not load execution mode settings:', error);
+                managedAvailabilityLoaded = true;
                 managedModeInput.disabled = true;
                 managedModeInput.checked = false;
                 executionMode = 'byo';
                 byoModeInput.checked = true;
                 settingsStatus.textContent = 'Could not check managed cloud availability. Use your own API key.';
+                renderUsagePill();
             }
         }
 
@@ -1518,8 +1636,7 @@
         document.querySelectorAll('input[name="execution-mode"]').forEach((input) => {
             input.addEventListener('change', () => {
                 if (input.checked && (input.value !== 'managed' || managedCloudAvailable)) {
-                    executionMode = input.value;
-                    writeSessionValue(executionModeStorageKey, executionMode);
+                    setExecutionMode(input.value);
                 }
             });
         });
@@ -1533,9 +1650,7 @@
                 apiKeyStatus.textContent = 'Could not save the key in this browser session.';
                 return;
             }
-            executionMode = 'byo';
-            byoModeInput.checked = true;
-            writeSessionValue(executionModeStorageKey, executionMode);
+            setExecutionMode('byo');
             apiKeyStatus.textContent = 'API key saved for this browser session.';
         });
         document.getElementById('disconnect-api-key').addEventListener('click', () => {
@@ -1544,9 +1659,9 @@
                 apiKeyInput.value = '';
                 apiKeyStatus.textContent = 'API key disconnected from this browser session.';
                 if (managedCloudAvailable) {
-                    executionMode = 'managed';
-                    managedModeInput.checked = true;
-                    writeSessionValue(executionModeStorageKey, executionMode);
+                    setExecutionMode('managed');
+                } else {
+                    renderUsagePill();
                 }
             } catch {
                 console.error('Could not remove the saved API key.');
@@ -1571,9 +1686,40 @@
         });
         document.querySelectorAll('[data-select-plan]').forEach((button) => {
             button.addEventListener('click', () => {
+                const plan = button.dataset.selectPlan.toLowerCase();
+                const url = checkoutUrls[plan];
+                if (url) {
+                    window.open(url, '_blank', 'noopener,noreferrer');
+                    document.getElementById('checkout-actions').hidden = true;
+                    document.getElementById('pricing-status').textContent =
+                        `Opening secure checkout for the ${button.dataset.selectPlan} plan.`;
+                    return;
+                }
+                const cycle = document.querySelector('[data-billing="yearly"][aria-pressed="true"]')
+                    ? 'Yearly'
+                    : 'Monthly';
+                const currency = document.querySelector('[data-currency][aria-pressed="true"]')?.dataset.currency || 'USD';
+                const amount = plan === 'free'
+                    ? 'Free'
+                    : document.querySelector(`[data-price="${plan}"]`).textContent;
+                const billingDetail = plan === 'free' ? '' : ` (${cycle === 'Yearly' ? 'billed yearly' : 'billed monthly'})`;
                 document.getElementById('pricing-status').textContent =
-                    `${button.dataset.selectPlan} plan selection is not connected to billing yet.`;
+                    `${button.dataset.selectPlan} plan · ${cycle} · ${amount} ${currency}${billingDetail}. Checkout is not configured yet.`;
+                document.getElementById('checkout-actions').hidden = false;
             });
+        });
+        document.getElementById('checkout-byo-action').addEventListener('click', () => {
+            setExecutionMode('byo');
+            closeModal();
+            openModal('settings-modal');
+            document.querySelector('[data-settings-tab="connectors"]').click();
+            apiKeyInput.focus();
+        });
+        document.getElementById('api-keys-go-to-settings').addEventListener('click', () => {
+            closeModal();
+            openModal('settings-modal');
+            document.querySelector('[data-settings-tab="connectors"]').click();
+            apiKeyInput.focus();
         });
         document.querySelectorAll('[data-project-filter]').forEach((button) => {
             button.addEventListener('click', () => {
@@ -1640,6 +1786,7 @@
         renderRecentProjects();
         renderProjectActivity();
         renderPlanPrices();
+        renderUsagePill();
         void loadManagedAvailability();
 
         function setUXState(nextState) {
@@ -1758,15 +1905,54 @@
             const entry = files.find((file) => file.path === 'public/index.html' || file.path === 'index.html');
             if (!entry) return '';
             let doc = entry.content;
-            const cssContents = files
-                .filter((file) => file.path.endsWith('.css'))
+            const cssFiles = files
+                .filter((file) => file.path.endsWith('.css') && !/(^|\/)(functions|api)(\/|$)/i.test(file.path));
+            const clientScriptFiles = files
+                .filter((file) => /\.(?:js|mjs)$/i.test(file.path))
+                .filter((file) => !/(^|\/)(functions|api)(\/|$)|(^|\/)(?:server|backend)(?:\/|[-.]|$)/i.test(file.path));
+            const cssContents = cssFiles
                 .map((file) => file.content)
                 .join('\n');
+            const clientScripts = clientScriptFiles
+                .map((file) => file.content.replace(/<\/script/gi, '<\\/script'))
+                .join('\n');
+            const matchesBundle = (reference, bundledFiles) => {
+                if (!reference || /^(?:[a-z][a-z\d+.-]*:|\/\/|#)/i.test(reference)) return false;
+                let path = reference.split(/[?#]/, 1)[0].replace(/^\.\/+/, '').replace(/^\/+/, '');
+                try {
+                    path = decodeURIComponent(path);
+                } catch (error) {
+                    console.error('Could not decode a local preview asset path:', error);
+                    return false;
+                }
+                return bundledFiles.some(({ path: bundledPath }) =>
+                    bundledPath === path
+                    || bundledPath === `public/${path}`
+                    || (path.startsWith('public/') && bundledPath === path.slice('public/'.length)));
+            };
+            doc = doc.replace(/<link\b[^>]*>/gi, (tag) => {
+                const relation = tag.match(/\brel\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+                const href = tag.match(/\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+                const relationValue = relation?.[1] ?? relation?.[2] ?? relation?.[3] ?? '';
+                const hrefValue = href?.[1] ?? href?.[2] ?? href?.[3] ?? '';
+                return /\bstylesheet\b/i.test(relationValue) && matchesBundle(hrefValue, cssFiles) ? '' : tag;
+            });
+            doc = doc.replace(/<script\b(?=[^>]*\bsrc\s*=)[^>]*>[\s\S]*?<\/script\s*>/gi, (tag) => {
+                const source = tag.match(/\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+                const sourceValue = source?.[1] ?? source?.[2] ?? source?.[3] ?? '';
+                return matchesBundle(sourceValue, clientScriptFiles) ? '' : tag;
+            });
             if (cssContents) {
                 const styleTag = `<style>\n${cssContents}\n</style>`;
-                doc = doc.includes('</head>')
-                    ? doc.replace('</head>', `${styleTag}\n</head>`)
+                doc = /<\/head>/i.test(doc)
+                    ? doc.replace(/<\/head>/i, `${styleTag}\n</head>`)
                     : `${styleTag}\n${doc}`;
+            }
+            if (clientScripts) {
+                const scriptTag = `<script type="module">\n${clientScripts}\n\u003c/script>`;
+                doc = /<\/body>/i.test(doc)
+                    ? doc.replace(/<\/body>/i, `${scriptTag}\n</body>`)
+                    : `${doc}\n${scriptTag}`;
             }
             return doc;
         }
@@ -1836,6 +2022,32 @@
                 });
                 delivery.appendChild(saveButton);
             }
+
+            const exportButton = document.createElement('button');
+            exportButton.className = 'utility-button generated-file-button';
+            exportButton.type = 'button';
+            exportButton.textContent = 'Export project JSON';
+            exportButton.addEventListener('click', () => {
+                const projectName = typeof latestSpec?.name === 'string' && latestSpec.name
+                    ? latestSpec.name
+                    : 'Untitled app';
+                const bundle = {
+                    name: projectName,
+                    category: selectedCategory,
+                    exportedAt: new Date().toISOString(),
+                    spec: latestSpec,
+                    files,
+                };
+                const safeName = projectName.replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '') || 'project';
+                const url = URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json;charset=utf-8' }));
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `${safeName}.json`;
+                link.click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                status.textContent = 'Project JSON exported.';
+            });
+            delivery.appendChild(exportButton);
 
             const downloads = document.createElement('details');
             const downloadsSummary = document.createElement('summary');
@@ -1996,10 +2208,17 @@
         async function sendMessage(messageText, input, submitButton) {
             const message = (messageText ?? input.value).trim();
             if (!message || submitButton.disabled) return;
-            if (executionMode === 'byo' && !readSessionValue('byo_gemini_key')) {
-                openModal('settings-modal');
-                document.querySelector('[data-settings-tab="connectors"]').click();
-                apiKeyStatus.textContent = 'Connect a Gemini API key before starting generation.';
+            const hasApiKey = hasSavedApiKey();
+            if (executionMode === 'managed' && managedCloudAvailable && generationCount >= managedGenerationLimit) {
+                if (hasApiKey) {
+                    setExecutionMode('byo');
+                } else {
+                    openModal('api-keys-required-modal');
+                    return;
+                }
+            }
+            if ((executionMode === 'byo' || (managedAvailabilityLoaded && !managedCloudAvailable)) && !hasApiKey) {
+                openModal('api-keys-required-modal');
                 return;
             }
             const requestId = ++activeRequestId;
@@ -2046,6 +2265,7 @@
                     hasGeneratedAnyApp = true;
                     latestSpec = data.spec;
                     addGeneratedFilesControls(assistantMessage.messageContent, data.files);
+                    if (executionMode === 'managed') recordGeneration();
                     if (!saveRecentProject(data.files, data.spec)) {
                         assistantMessage.messageContent.querySelector('.generated-files-status').textContent =
                             'The app was generated, but could not be saved to Recent projects.';

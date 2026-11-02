@@ -463,6 +463,27 @@ test('public page sends chat messages to the same-origin backend and safely hand
   assert.match(html, /function validateGeneratedFiles\(files\)/);
   assert.match(html, /window\.showDirectoryPicker\(\{ mode: 'readwrite' \}\)/);
   assert.match(html, /await writable\.write\(file\.content\)/);
+  assert.match(html, /Export project JSON/);
+  assert.match(html, /exportedAt: new Date\(\)\.toISOString\(\)/);
+  assert.match(html, /spec: latestSpec/);
+  assert.match(html, /function buildPreviewSrcdoc\(files\)/);
+  assert.match(html, /<script type="module">/);
+  assert.match(html, /clientScriptFiles/);
+  assert.match(html, /buildPreviewSrcdoc\(files\)/);
+  assert.match(html, /id="api-keys-required-modal"/);
+  assert.match(html, /<h2 id="api-keys-required-title">API Keys Required<\/h2>/);
+  assert.match(html, /Why do I need to add API keys\?/);
+  assert.match(html, /Google Gemini — Supported &amp; Recommended/);
+  assert.match(html, /Anthropic \(Claude\)/);
+  assert.match(html, /OpenAI — Compatibility roadmap/);
+  assert.match(html, /Your Keys Are Secure/);
+  assert.match(html, /Go to Settings →/);
+  assert.match(html, /prompt2app_generation_count/);
+  assert.match(html, /Managed Generations: \$\{generationCount\} \/ \$\{managedGenerationLimit\} Free/);
+  assert.match(html, /BYO Key Mode · Unlimited/);
+  assert.match(html, /window\.open\(url, '_blank', 'noopener,noreferrer'\)/);
+  assert.match(html, /Checkout is not configured yet/);
+  assert.match(html, /Switch to BYO API Keys for free unlimited usage/);
   assert.match(html, /Download individual files/);
   assert.match(html, /Preview & inspect generated code/);
   assert.match(html, /addGeneratedFilesControls\(assistantMessage\.messageContent, data\.files\)/);
@@ -487,6 +508,41 @@ test('public page sends chat messages to the same-origin backend and safely hand
   assert.match(html, /followupComposer\.addEventListener\('submit'/);
   assert.match(html, /void sendMessage\(undefined, followupInput, followupSubmit\)/);
   assert.doesNotMatch(html, /\blet supabase\b|\bsupabase\.auth/);
+});
+
+test('backend GET returns managed availability and configured checkout URLs', async () => {
+  const envNames = ['GEMINI_API_KEY', 'CHECKOUT_URL_STARTER', 'CHECKOUT_URL_PRO'];
+  const previousValues = new Map(envNames.map((name) => [name, process.env[name]]));
+  process.env.GEMINI_API_KEY = 'managed-test-key';
+  process.env.CHECKOUT_URL_STARTER = 'https://checkout.example/starter';
+  process.env.CHECKOUT_URL_PRO = 'https://checkout.example/pro';
+  const response = {
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    },
+  };
+
+  try {
+    await backendApi({ method: 'GET' }, response);
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.body, {
+      managedAvailable: true,
+      checkoutUrls: {
+        starter: 'https://checkout.example/starter',
+        pro: 'https://checkout.example/pro',
+      },
+    });
+  } finally {
+    for (const [name, value] of previousValues) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
 });
 
 test('backend route generates files through a forced tool call and returns them to the client', async () => {
@@ -757,7 +813,8 @@ test('backend route rejects invalid messages and reports missing Gemini configur
 });
 
 test('backend reports managed cloud availability without disclosing the configured key', async () => {
-  const previousApiKey = process.env.GEMINI_API_KEY;
+  const envNames = ['GEMINI_API_KEY', 'CHECKOUT_URL_STARTER', 'CHECKOUT_URL_PRO'];
+  const previousValues = new Map(envNames.map((name) => [name, process.env[name]]));
   const response = {
     status(code) {
       this.statusCode = code;
@@ -771,13 +828,20 @@ test('backend reports managed cloud availability without disclosing the configur
 
   try {
     process.env.GEMINI_API_KEY = 'managed-secret-test-key';
+    delete process.env.CHECKOUT_URL_STARTER;
+    delete process.env.CHECKOUT_URL_PRO;
     await backendApi({ method: 'GET' }, response);
     assert.equal(response.statusCode, 200);
-    assert.deepEqual(response.body, { managedAvailable: true });
+    assert.deepEqual(response.body, {
+      managedAvailable: true,
+      checkoutUrls: { starter: null, pro: null },
+    });
     assert.doesNotMatch(JSON.stringify(response.body), /managed-secret-test-key/);
   } finally {
-    if (previousApiKey === undefined) delete process.env.GEMINI_API_KEY;
-    else process.env.GEMINI_API_KEY = previousApiKey;
+    for (const [name, value] of previousValues) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
   }
 });
 
