@@ -2,6 +2,7 @@
 """Generate labeled Phase 6 UI wireframe fixtures and an Ultralytics config."""
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import json
 import random
 from pathlib import Path
@@ -35,6 +36,31 @@ PALETTES = (
         "accent": "#d17a57", "text": "#342b29", "muted": "#9a8e89",
         "border": "#ece4df", "soft": "#fbefe8",
     },
+    {
+        "background": "#0b0f19", "surface": "#141b2a", "sidebar": "#090d15",
+        "accent": "#5b8cff", "text": "#e6edf7", "muted": "#8995a8",
+        "border": "#293447", "soft": "#1a2942",
+    },
+    {
+        "background": "#141b2a", "surface": "#1c2638", "sidebar": "#101725",
+        "accent": "#4dd4ac", "text": "#e8eef6", "muted": "#9aa9bd",
+        "border": "#344257", "soft": "#203c3b",
+    },
+    {
+        "background": "#0f172a", "surface": "#182338", "sidebar": "#0b1222",
+        "accent": "#a78bfa", "text": "#eef2ff", "muted": "#9aa7c2",
+        "border": "#303e59", "soft": "#2b2649",
+    },
+    {
+        "background": "#18181b", "surface": "#232326", "sidebar": "#111113",
+        "accent": "#fb923c", "text": "#f4f4f5", "muted": "#a1a1aa",
+        "border": "#3f3f46", "soft": "#3b2b20",
+    },
+    {
+        "background": "#ffffff", "surface": "#ffffff", "sidebar": "#ffffff",
+        "accent": "#000000", "text": "#000000", "muted": "#333333",
+        "border": "#000000", "soft": "#eeeeee",
+    },
 )
 
 
@@ -54,11 +80,14 @@ def validate_labels(rows: list[tuple[int, tuple[int, int, int, int]]]) -> None:
     class_ids = {class_id for class_id, _ in rows}
     if class_ids != set(range(len(CLASS_NAMES))):
         raise ValueError(f"generated fixture is missing classes: {class_ids}")
-    for class_id, (left, top, right, bottom) in rows:
+    for row_index, (class_id, (left, top, right, bottom)) in enumerate(rows):
         if not 0 <= class_id < len(CLASS_NAMES):
             raise ValueError(f"generated class id is out of range: {class_id}")
         if not (0 <= left < right <= IMAGE_SIZE[0] and 0 <= top < bottom <= IMAGE_SIZE[1]):
             raise ValueError(f"generated bounds are outside the image: {(left, top, right, bottom)}")
+        for _, (other_left, other_top, other_right, other_bottom) in rows[:row_index]:
+            if left < other_right and other_left < right and top < other_bottom and other_top < bottom:
+                raise ValueError(f"generated bounds overlap: {(left, top, right, bottom)}")
         values = (
             (left + right) / (2 * IMAGE_SIZE[0]),
             (top + bottom) / (2 * IMAGE_SIZE[1]),
@@ -69,8 +98,10 @@ def validate_labels(rows: list[tuple[int, tuple[int, int, int, int]]]) -> None:
             raise ValueError(f"generated YOLO coordinates are invalid: {values}")
 
 
-def draw_fixture(index: int, seed: int, output_path: Path) -> list[tuple[int, tuple[int, int, int, int]]]:
-    """Draw a varied dashboard wireframe and return its labeled component bounds."""
+def _draw_baseline_fixture(
+    index: int, seed: int, output_path: Path
+) -> list[tuple[int, tuple[int, int, int, int]]]:
+    """Keep the original first fixture geometry as a stable baseline."""
     rng = random.Random(seed)
     palette = PALETTES[(index + seed) % len(PALETTES)]
     image = Image.new("RGB", IMAGE_SIZE, palette["background"])
@@ -174,6 +205,286 @@ def draw_fixture(index: int, seed: int, output_path: Path) -> list[tuple[int, tu
     return boxes
 
 
+def _draw_sidebar(draw: ImageDraw.ImageDraw, palette: dict, bounds: tuple[int, int, int, int],
+                  active_row: int, body_font: ImageFont.ImageFont,
+                  small_font: ImageFont.ImageFont) -> None:
+    left, top, right, bottom = bounds
+    width = right - left
+    draw.rectangle(bounds, fill=palette["sidebar"], outline=palette["border"], width=2)
+    draw.rounded_rectangle((left + 18, top + 22, left + 49, top + 53),
+                           radius=8, fill=palette["accent"])
+    draw.line((left + 26, top + 37, left + 32, top + 43, left + 41, top + 31),
+              fill="#ffffff", width=3)
+    draw.text((left + 59, top + 29), "NORTHSTAR", font=small_font, fill=palette["text"])
+    draw.text((left + 20, top + 82), "WORKSPACE", font=small_font, fill=palette["muted"])
+    for row, label in enumerate(("Overview", "Analytics", "Projects", "Messages", "Settings")):
+        y = top + 111 + row * 48
+        if row == active_row:
+            draw.rounded_rectangle((left + 10, y - 7, right - 10, y + 31),
+                                   radius=8, fill=palette["soft"])
+        draw.ellipse((left + 22, y + 2, left + 34, y + 14),
+                     outline=palette["muted"], width=2)
+        if width >= 185:
+            draw.text((left + 45, y), label, font=body_font,
+                      fill=palette["text"] if row == active_row else palette["muted"])
+    draw.line((left + 18, top + 390, right - 18, top + 390),
+              fill=palette["border"], width=1)
+    draw.ellipse((left + 21, top + 414, left + 49, top + 442), fill=palette["accent"])
+    if width >= 200:
+        draw.text((left + 58, top + 414), "Morgan Lee", font=small_font, fill=palette["text"])
+        draw.text((left + 58, top + 431), "Team admin", font=small_font, fill=palette["muted"])
+
+
+def _draw_card(draw: ImageDraw.ImageDraw, palette: dict,
+               bounds: tuple[int, int, int, int], title: str, kind: str,
+               rng: random.Random, body_font: ImageFont.ImageFont,
+               small_font: ImageFont.ImageFont) -> None:
+    left, top, right, bottom = bounds
+    draw.rounded_rectangle(bounds, radius=10, fill=palette["surface"],
+                           outline=palette["border"], width=2)
+    draw.text((left + 12, top + 13), title, font=small_font, fill=palette["muted"])
+    if kind == "metric":
+        draw.text((left + 12, top + 37), f"{rng.randint(2, 98)},{rng.randint(100, 999)}",
+                  font=body_font, fill=palette["text"])
+        draw.text((left + 12, top + 65), f"+{rng.randint(2, 28)}% this month",
+                  font=small_font, fill=palette["accent"])
+        draw.line((left + 12, bottom - 20, right - 12, bottom - 20),
+                  fill=palette["border"], width=2)
+    else:
+        chart_top = top + 44
+        chart_bottom = bottom - 18
+        points = []
+        for step in range(6):
+            x = left + 15 + step * max(1, (right - left - 30) // 5)
+            y = rng.randint(chart_top, max(chart_top, chart_bottom))
+            points.append((x, y))
+        if len(points) > 1:
+            draw.line(points, fill=palette["accent"], width=3, joint="curve")
+        for y in range(chart_top + 15, chart_bottom, 30):
+            draw.line((left + 12, y, right - 12, y), fill=palette["border"], width=1)
+
+
+def _draw_input(draw: ImageDraw.ImageDraw, palette: dict,
+                bounds: tuple[int, int, int, int], text: str,
+                small_font: ImageFont.ImageFont) -> None:
+    left, top, right, bottom = bounds
+    draw.rounded_rectangle(bounds, radius=9, fill=palette["surface"],
+                           outline=palette["border"], width=2)
+    draw.ellipse((left + 12, top + 13, left + 25, top + 26),
+                 outline=palette["muted"], width=2)
+    draw.line((left + 24, top + 25, left + 30, top + 31),
+              fill=palette["muted"], width=2)
+    draw.text((left + 38, top + 14), text, font=small_font, fill=palette["muted"])
+
+
+def _draw_button(draw: ImageDraw.ImageDraw, palette: dict,
+                 bounds: tuple[int, int, int, int], small_font: ImageFont.ImageFont) -> None:
+    left, top, right, bottom = bounds
+    draw.rounded_rectangle(bounds, radius=9, fill=palette["accent"])
+    draw.text((left + 10, top + 14), "＋ Create", font=small_font, fill="#ffffff")
+
+
+def _draw_feed(draw: ImageDraw.ImageDraw, palette: dict,
+               bounds: tuple[int, int, int, int], title_font: ImageFont.ImageFont,
+               body_font: ImageFont.ImageFont, small_font: ImageFont.ImageFont) -> None:
+    left, top, right, bottom = bounds
+    draw.rounded_rectangle(bounds, radius=11, fill=palette["surface"],
+                           outline=palette["border"], width=2)
+    draw.text((left + 16, top + 15), "Team activity", font=title_font, fill=palette["text"])
+    draw.line((left + 14, top + 49, right - 14, top + 49),
+              fill=palette["border"], width=1)
+    row_height = max(42, min(66, (bottom - top - 60) // 3))
+    for row, (name, message) in enumerate((
+        ("Morgan Lee", "Shared a dashboard with the team"),
+        ("Alex Johnson", "Updated the performance metrics"),
+        ("Sam Kim", "Added a new workspace project"),
+    )):
+        y = top + 62 + row * row_height
+        if y + 34 >= bottom:
+            break
+        draw.ellipse((left + 15, y, left + 43, y + 28), fill=palette["soft"])
+        draw.text((left + 52, y), name, font=body_font, fill=palette["text"])
+        if right - left > 310:
+            draw.text((left + 52, y + 19), message, font=small_font, fill=palette["muted"])
+        if row < 2:
+            draw.line((left + 52, y + row_height - 5, right - 14, y + row_height - 5),
+                      fill=palette["border"], width=1)
+
+
+def _control_bounds(rng: random.Random, x0: int, x1: int, y: int,
+                    height: int) -> tuple[tuple[int, int, int, int], tuple[int, int, int, int]]:
+    margin = 24
+    gap = 12
+    available = x1 - x0 - 2 * margin
+    button_width = rng.randint(95, 160)
+    max_input_width = min(520, available - button_width - gap)
+    if max_input_width < 180:
+        button_width = min(95, max(80, available - 180 - gap))
+        max_input_width = available - button_width - gap
+    input_width = rng.randint(180, max(180, max_input_width))
+    start = x0 + margin
+    return (
+        (start, y, start + input_width, y + height),
+        (start + input_width + gap, y, start + input_width + gap + button_width, y + height),
+    )
+
+
+def _partition_widths(rng: random.Random, total: int, count: int) -> list[int]:
+    gap = 14
+    available = total - gap * (count - 1)
+    base = available // count
+    widths = [base + rng.randint(-18, 18) for _ in range(count - 1)]
+    widths.append(available - sum(widths))
+    return widths
+
+
+def draw_fixture(index: int, seed: int, output_path: Path) -> list[tuple[int, tuple[int, int, int, int]]]:
+    """Draw a deterministic procedural UI archetype and its component bounds."""
+    if index == 1:
+        return _draw_baseline_fixture(index, seed, output_path)
+
+    rng = random.Random(seed)
+    palette = PALETTES[rng.randrange(len(PALETTES))]
+    image = Image.new("RGB", IMAGE_SIZE, palette["background"])
+    draw = ImageDraw.Draw(image)
+    title_font = ImageFont.load_default(size=18)
+    body_font = ImageFont.load_default(size=14)
+    small_font = ImageFont.load_default(size=12)
+
+    sidebar_width = rng.randint(160, 250)
+    dock_left = bool(rng.getrandbits(1))
+    sidebar = ((0, 0, sidebar_width, IMAGE_SIZE[1]) if dock_left else
+               (IMAGE_SIZE[0] - sidebar_width, 0, IMAGE_SIZE[0], IMAGE_SIZE[1]))
+    content_left = sidebar_width if dock_left else 0
+    content_right = IMAGE_SIZE[0] if dock_left else IMAGE_SIZE[0] - sidebar_width
+    content_width = content_right - content_left
+    _draw_sidebar(draw, palette, sidebar, rng.randrange(5), body_font, small_font)
+
+    archetype = rng.choice(("dashboard", "split_studio", "center_feed"))
+    control_mode = rng.choice(("top_bar", "filter_bar", "composer"))
+    controls_y = {"top_bar": 24, "filter_bar": 92, "composer": 552}[control_mode]
+    split_feed_width = None
+    controls_right = content_right
+    if archetype == "split_studio":
+        split_feed_width = int(content_width * rng.uniform(0.38, 0.44))
+        controls_right = content_right - split_feed_width - 16
+    input_box, button_box = _control_bounds(
+        rng, content_left, controls_right, controls_y, 48
+    )
+    control_boxes = [(2, input_box), (3, button_box)]
+    boxes: list[tuple[int, tuple[int, int, int, int]]] = [(0, sidebar)]
+    boxes.extend(control_boxes)
+
+    if archetype == "dashboard":
+        card_layout = rng.choice(("two_column", "three_column", "stacked"))
+        cards_left = content_left + 24
+        cards_right = content_right - 24
+        cards_width = cards_right - cards_left
+        if control_mode == "top_bar":
+            cards_top = 102
+        elif control_mode == "filter_bar":
+            cards_top = 154
+        else:
+            cards_top = 26
+
+        if card_layout == "stacked":
+            chat_bottom = 536 if control_mode == "composer" else 614
+            height_limit = max(140, min(230, (chat_bottom - cards_top - 26 - 140) // 2))
+            card_heights = (rng.randint(140, height_limit), rng.randint(140, height_limit))
+            first = (cards_left, cards_top, cards_right, cards_top + card_heights[0])
+            second_top = first[3] + 12
+            second = (cards_left, second_top, cards_right, second_top + card_heights[1])
+            card_boxes = [first, second]
+            feed_top = second[3] + 12
+        else:
+            count = 2 if card_layout == "two_column" else 3
+            widths = _partition_widths(rng, cards_width, count)
+            card_height = rng.randint(140, 230)
+            card_boxes = []
+            x = cards_left
+            for position, width in enumerate(widths):
+                card_boxes.append((x, cards_top, x + width, cards_top + card_height))
+                x += width + 14
+            feed_top = cards_top + card_height + 14
+        feed_bottom = 536 if control_mode == "composer" else 614
+        feed_box = (cards_left, feed_top, cards_right, feed_bottom)
+        if feed_box[3] - feed_box[1] < 40:
+            raise ValueError("generated dashboard leaves insufficient space for its activity feed")
+        for position, card_box in enumerate(card_boxes):
+            kind = "metric" if position % 2 == 0 else "chart"
+            title = ("Active users", "Weekly activity", "Conversion rate")[position % 3]
+            _draw_card(draw, palette, card_box, title, kind, rng, body_font, small_font)
+            boxes.append((1, card_box))
+    elif archetype == "split_studio":
+        if split_feed_width is None:
+            raise RuntimeError("split-studio layout is missing its feed width")
+        feed_width = split_feed_width
+        feed_left = content_right - 24 - feed_width
+        feed_box = (feed_left, 24, content_right - 24, 614)
+        left_edge = content_left + 24
+        left_width = feed_left - 16 - left_edge
+        layout = rng.choice(("two_column", "stacked"))
+        if layout == "two_column":
+            widths = _partition_widths(rng, left_width, 2)
+            card_height = rng.randint(140, 230)
+            card_boxes = []
+            x = left_edge
+            for width in widths:
+                card_boxes.append((x, 154, x + width, 154 + card_height))
+                x += width + 14
+        else:
+            first_height = rng.randint(140, 190)
+            second_height = rng.randint(140, 190)
+            card_boxes = [
+                (left_edge, 154, left_edge + left_width, 154 + first_height),
+                (left_edge, 166 + first_height, left_edge + left_width,
+                 166 + first_height + second_height),
+            ]
+        for position, card_box in enumerate(card_boxes):
+            _draw_card(draw, palette, card_box,
+                       ("Active users", "Weekly activity")[position],
+                       "metric" if position == 0 else "chart", rng, body_font, small_font)
+            boxes.append((1, card_box))
+    else:
+        feed_width = int(content_width * rng.uniform(0.38, 0.44))
+        feed_left = content_left + (content_width - feed_width) // 2
+        feed_right = feed_left + feed_width
+        if control_mode == "top_bar":
+            feed_top = 92
+        elif control_mode == "composer":
+            feed_top = 24
+        else:
+            feed_top = 154
+        feed_bottom = 614 if control_mode != "composer" else 536
+        feed_box = (feed_left, feed_top, feed_right, feed_bottom)
+        side_regions = (
+            (content_left + 12, feed_left - 12),
+            (feed_right + 12, content_right - 12),
+        )
+        card_boxes = []
+        for region_left, region_right in side_regions:
+            card_width = region_right - region_left
+            card_height = rng.randint(140, min(230, 220))
+            card_top = rng.randint(max(84, feed_top + 12), min(180, feed_bottom - card_height))
+            card_boxes.append((region_left, card_top, region_right, card_top + card_height))
+        for position, card_box in enumerate(card_boxes):
+            _draw_card(draw, palette, card_box,
+                       ("Active users", "Weekly activity")[position],
+                       "metric" if position == 0 else "chart", rng, body_font, small_font)
+            boxes.append((1, card_box))
+
+    _draw_input(draw, palette, input_box,
+                rng.choice(("Search workspace", "Filter activity", "Ask anything")),
+                small_font)
+    _draw_button(draw, palette, button_box, small_font)
+    _draw_feed(draw, palette, feed_box, title_font, body_font, small_font)
+    boxes.append((4, feed_box))
+    validate_labels(boxes)
+    image.save(output_path, format="PNG", optimize=True)
+    output_path.chmod(0o644)
+    return boxes
+
+
 def write_dataset_yaml(dataset_root: Path) -> Path:
     """Write a host-independent Ultralytics dataset manifest."""
     yaml_text = "\n".join((
@@ -190,7 +501,8 @@ def write_dataset_yaml(dataset_root: Path) -> Path:
     return config_path
 
 
-def generate_split(dataset_root: Path, split: str, count: int, force: bool) -> int:
+def generate_split(dataset_root: Path, split: str, count: int, force: bool,
+                   workers: int = 1) -> int:
     image_root = dataset_root / "images" / split
     label_root = dataset_root / "labels" / split
     image_root.mkdir(parents=True, exist_ok=True)
@@ -208,7 +520,8 @@ def generate_split(dataset_root: Path, split: str, count: int, force: bool) -> i
             + ", ".join(str(path) for path in existing)
         )
 
-    for index, (image_path, label_path) in enumerate(planned, start=1):
+    def generate_fixture(item: tuple[int, tuple[Path, Path]]) -> None:
+        index, (image_path, label_path) = item
         seed = index if split == "train" else 10_000 + index
         boxes = draw_fixture(index, seed, image_path)
         validate_labels(boxes)
@@ -217,6 +530,14 @@ def generate_split(dataset_root: Path, split: str, count: int, force: bool) -> i
             raise ValueError(f"generated labels are blank: {label_path}")
         label_path.write_text(label_text, encoding="utf-8")
         label_path.chmod(0o644)
+
+    indexed_planned = list(enumerate(planned, start=1))
+    if workers == 1:
+        for item in indexed_planned:
+            generate_fixture(item)
+    else:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            list(executor.map(generate_fixture, indexed_planned))
 
     return len(planned)
 
@@ -234,14 +555,25 @@ def main() -> None:
         action="store_true",
         help="Replace fixtures with this script's generated filenames",
     )
+    parser.add_argument("--train-count", type=int, default=SPLITS["train"],
+                        help="Number of training fixtures to generate (default: 40)")
+    parser.add_argument("--val-count", type=int, default=SPLITS["val"],
+                        help="Number of validation fixtures to generate (default: 10)")
+    parser.add_argument("--workers", type=int, default=1,
+                        help="Number of fixture-generation workers (default: 1)")
     args = parser.parse_args()
+    if args.train_count < 0 or args.val_count < 0:
+        parser.error("--train-count and --val-count must be non-negative")
+    if args.workers < 1:
+        parser.error("--workers must be at least 1")
 
     dataset_root = args.data_root.resolve()
     dataset_root.mkdir(parents=True, exist_ok=True)
+    splits = {"train": args.train_count, "val": args.val_count}
     if not args.force:
         existing = [
             path
-            for split, count in SPLITS.items()
+            for split, count in splits.items()
             for index in range(1, count + 1)
             for path in (
                 dataset_root / "images" / split / f"ui_{split}_{index:03d}.png",
@@ -255,8 +587,8 @@ def main() -> None:
                 + ", ".join(str(path) for path in existing)
             )
     total = sum(
-        generate_split(dataset_root, split, count, args.force)
-        for split, count in SPLITS.items()
+        generate_split(dataset_root, split, count, args.force, args.workers)
+        for split, count in splits.items()
     )
     config_path = write_dataset_yaml(dataset_root)
     print(f"Generated {total} UI image/label pair(s) at {dataset_root}")

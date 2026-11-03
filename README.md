@@ -76,12 +76,26 @@ launcher verifies `best.pt` and `last.pt`, then runs a post-training validation 
 `--force` to the seeder to replace its named mock fixtures when refreshing the smoke-test data.
 
 For the separate Phase 6 dashboard UI classes, run `python training/ingest_ui_data.py` to generate
-40 training and 10 validation dashboard wireframes with matching YOLO labels in `data/ui_dataset/`.
-The dataset manifest uses a relative `path: .` and the classes `sidebar`, `dashboard_card`,
+40 training and 10 validation wireframes with matching YOLO labels in `data/ui_dataset/`. Fixtures
+vary among light, dark, and wireframe palettes and multiple dashboard, studio, and chat layouts. The
+dataset manifest uses a relative `path: .` and the classes `sidebar`, `dashboard_card`,
 `input_field`, `action_button`, and `chat_feed`; it does not change the existing locked-component
-dataset above. The generator refuses to overwrite its named fixtures unless passed `--force`. Then run
-`python training/train_yolo.py --dry-run` to inspect the 50-epoch CPU configuration. The trainer expects the local baseline at
-`training/weights/yolov8n.pt`; it never substitutes an arbitrary checkpoint.
+dataset above. The generator refuses to overwrite its named fixtures unless passed `--force`. Use
+`--train-count`, `--val-count`, and `--workers` to configure the dataset size and generation
+parallelism; for example:
+
+```sh
+python training/ingest_ui_data.py --train-count 5000 --val-count 1000 --workers 4 --force
+```
+
+This generates 6,000 fixtures.
+
+Run `python training/train_yolo.py --dry-run` to validate the dataset and inspect the stable
+50-epoch CPU configuration. Training defaults to 50 epochs, 640-pixel images, batch size 16, and
+CPU; options include `--epochs`, `--imgsz`, `--batch`, `--device`, `--cache`, and `--cache-ram`.
+For example, `python training/train_yolo.py --device 0 --cache-ram --export-onnx` trains using a
+GPU, caches the dataset in RAM, and exports the trained `best.onnx` checkpoint. The trainer expects
+the local baseline at `training/weights/yolov8n.pt`; it never substitutes an arbitrary checkpoint.
 
 Run `python training/scripts/evaluate_and_infer.py --image-dir <images-directory>` to load the
 latest custom checkpoint at `training/runs/train/weights/best.pt` and infer UI components for

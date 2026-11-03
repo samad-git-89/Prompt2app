@@ -39,7 +39,7 @@ def validate_dataset() -> None:
             )
 
 
-def train() -> None:
+def train(configuration: dict | None = None, export_onnx: bool = False) -> None:
     """Load the repository's local baseline checkpoint and start training."""
     validate_dataset()
     if not WEIGHTS_PATH.is_file():
@@ -57,7 +57,23 @@ def train() -> None:
         ) from error
 
     model = YOLO(str(WEIGHTS_PATH))
-    model.train(**TRAINING_CONFIG)
+    selected_config = {**TRAINING_CONFIG, **(configuration or {})}
+    model.train(**selected_config)
+    if export_onnx:
+        training_dir = Path(model.trainer.save_dir)
+        best_checkpoint = training_dir / "weights" / "best.pt"
+        if not best_checkpoint.is_file():
+            raise FileNotFoundError(
+                f"training completed without the best checkpoint: {best_checkpoint}"
+            )
+        trained_model = YOLO(str(best_checkpoint))
+        trained_model.export(
+            format="onnx",
+            imgsz=selected_config["imgsz"],
+        )
+        onnx_path = best_checkpoint.with_suffix(".onnx")
+        if not onnx_path.is_file():
+            raise FileNotFoundError(f"ONNX export was not created: {onnx_path}")
 
 
 def main() -> None:
@@ -67,7 +83,25 @@ def main() -> None:
         action="store_true",
         help="Validate the dataset scaffold and print training parameters without training",
     )
+    parser.add_argument("--epochs", type=int, default=50, help="Training epochs (default: 50)")
+    parser.add_argument("--imgsz", type=int, default=640, help="Training image size (default: 640)")
+    parser.add_argument("--batch", type=int, default=16, help="Training batch size (default: 16)")
+    parser.add_argument("--device", default="cpu", help='Training device (default: "cpu")')
+    cache_group = parser.add_mutually_exclusive_group()
+    cache_group.add_argument(
+        "--cache", action="store_true", help="Enable Ultralytics dataset caching"
+    )
+    cache_group.add_argument(
+        "--cache-ram", action="store_true", help='Cache the dataset in RAM ("ram")'
+    )
+    parser.add_argument(
+        "--export-onnx",
+        action="store_true",
+        help="Export the trained best.pt checkpoint to best.onnx",
+    )
     args = parser.parse_args()
+    if args.epochs < 1 or args.imgsz < 1 or args.batch < 1:
+        parser.error("--epochs, --imgsz, and --batch must be positive integers")
     os.chdir(REPOSITORY_ROOT)
     validate_dataset()
 
@@ -80,7 +114,14 @@ def main() -> None:
         }, indent=2))
         return
 
-    train()
+    training_overrides = {
+        "epochs": args.epochs,
+        "imgsz": args.imgsz,
+        "batch": args.batch,
+        "device": args.device,
+        "cache": "ram" if args.cache_ram else args.cache,
+    }
+    train(training_overrides, export_onnx=args.export_onnx)
 
 
 if __name__ == "__main__":
