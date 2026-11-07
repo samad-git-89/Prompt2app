@@ -16,19 +16,26 @@ const repositoryRoot = fileURLToPath(new URL('..', import.meta.url));
 const inferenceScript = fileURLToPath(new URL('../training/inference_pipeline.py', import.meta.url));
 const visionClassNames = ['sidebar', 'dashboard_card', 'input_field', 'action_button', 'chat_feed'];
 const maxVisionOutputBytes = 4 * 1024 * 1024;
+const buildCommandPattern = /^(?:build|create|make|generate|compile)\b/i;
 const greetingPatterns = [
   /^(?:hi|hello|hey|hiya|howdy|yo|sup|hola|salam|assalamu alaikum|greetings)(?:\s+there|\s+prompt2app|\s+assistant|\s+ai)?$/i,
   /^good\s+(?:morning|afternoon|evening|day)(?:\s+there|\s+prompt2app|\s+assistant|\s+ai)?$/i,
   /^(?:(?:hi|hello|hey)(?:\s+there)?\s+)?(?:how\s+are\s+you(?:\s+doing|\s+today)?|how\s+is\s+it\s+going|how's\s+it\s+going|what's\s+up|whats\s+up|how\s+do\s+you\s+do)(?:\s+today)?$/i,
   /^(?:who\s+are\s+you|what\s+can\s+you\s+do|what\s+is\s+this|help|help\s+me)$/i,
   /^(?:what\s+(?:kind|types?|sort)\s+of\s+(?:apps?|applications?|projects?|sites?|things?)\s+can\s+(?:we|you|i)\s+(?:build|make|create)|what\s+can\s+(?:we|you|i)\s+(?:build|make|create)(?:\s+today|\s+here)?|give\s+me\s+(?:some\s+)?(?:app\s+)?ideas|how\s+does\s+this\s+work|can\s+you\s+help\s+me)$/i,
+  /^(?:no\s+idea(?:\s+can\s+you\s+(?:provide|give|suggest)\s+(?:me\s+)?an?\s+idea)?|i\s+don\s+t\s+know\s+what\s+to\s+build|what\s+should\s+i\s+build|inspire\s+me|give\s+(?:me\s+)?(?:any|an?|some)\s+(?:practical\s+)?(?:app\s+)?ideas?\s+to\s+(?:build|make|create)|see\s+one\s+more|another\s+idea|something\s+more\s+fun)$/i,
+  /^suggest\s+(?:a\s+)?(?:different\s+)?(?:practical\s+)?app\s+idea\b/i,
+  /^(?:add\s+a\s+smart\s+touch|how\s+would\s+that\s+work|tell\s+me\s+more|what\s+features\s+would\s+it\s+have|what\s+features\s+should\s+it\s+have|what\s+would\s+it\s+include)\b/i,
 ];
 const conversationalInstruction = [
-  'You are the friendly conversational onboarding assistant for Prompt2app.',
-  'When the user sends a greeting or general pleasantry without describing an application to build, respond with a warm, concise plain-text greeting (1 to 2 sentences) and ask what kind of Site, SaaS application, or API they want to bring to life today.',
-  'Always end your response with a question mark (?) and never output code or JSON in this conversational turn.',
+  'You are a sharp, thoughtful product partner for Prompt2app. Read the full conversation and respond to the latest user turn, using the existing idea when refining.',
+  'Start with one concise, user-facing rationale summary on its own first line in the exact format "Thinking: ...", then a blank line, then your reply. Keep the summary to one sentence and do not reveal private chain-of-thought.',
+  'For a simple greeting, respond warmly and concisely, such as: "Hey! Got an idea you want to make real, or a task you’re tired of doing by hand?"',
+  'For idea requests, uncertainty about what to build, or requests for another idea, pitch one concrete, named, practical micro-app. For "another idea" or "See one more", choose a different app from earlier suggestions in the conversation. Use this structure: "Build idea: **<Name>** — <one-sentence hook>", then 3–4 concrete MVP UI elements or flows, then "The everyday payoff: <payoff>". End with a clear question such as "Want to take this app idea further?" or "Want a practical idea like that, or something more fun?"',
+  'For a request to add a smart touch or refine the idea, use the idea in the conversation history, suggest 1–2 high-leverage enhancements, and ask: "Ready to build the MVP with this, or want to tweak anything else?"',
+  'Always end the reply itself with a question mark (?) and never output code or JSON in this conversational turn.',
 ].join('\n');
-const defaultGreetingReply = 'Hi there! Welcome to prompt2app. What kind of Site, SaaS application, or API would you like to bring to life today?';
+const defaultGreetingReply = 'Thinking: I should warmly invite the user to share an idea or everyday task.\n\nHey! Got an idea you want to make real, or a task you’re tired of doing by hand?';
 
 export function isConversationalGreeting(prompt) {
   if (typeof prompt !== 'string' || prompt.trim().length === 0) return false;
@@ -38,8 +45,9 @@ export function isConversationalGreeting(prompt) {
     .replace(/[!?.~,;:'"`()+]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+  if (buildCommandPattern.test(normalized)) return false;
   return normalized.length > 0
-    && normalized.length <= 80
+    && normalized.length <= 4000
     && greetingPatterns.some((pattern) => pattern.test(normalized));
 }
 
@@ -81,7 +89,11 @@ export async function runConversationalTurn({
   if (!rawText || rawText.startsWith('{') || rawText.startsWith('[')) {
     return defaultGreetingReply;
   }
-  return rawText.includes('?') ? rawText : `${rawText} What kind of application would you like to build today?`;
+  const thinkingMatch = rawText.match(/^Thinking:\s*([^\r\n]+)\r?\n\r?\n([\s\S]+)$/i);
+  const thinking = thinkingMatch?.[1].trim()
+    || 'I should respond to the latest turn with a useful next step and a clear question.';
+  const reply = (thinkingMatch ? thinkingMatch[2] : rawText).trim().replace(/[.!?]+$/, '');
+  return `Thinking: ${thinking}\n\n${reply}?`;
 }
 const generateAppFilesTool = {
   name: 'generate_app_files',
@@ -575,6 +587,7 @@ export async function runPipeline({
         'Convert the user request into one AppSpec JSON object matching this schema exactly.',
         'Return JSON only. Do not invent integrations that the request does not need.',
         'Do not ask the user clarifying questions. Infer safe, conventional defaults for missing details and produce a complete, usable AppSpec immediately.',
+        'When the request contains a conversation transcript and a latest user request to build an MVP, use the app idea and agreed refinements from that transcript as product requirements; do not generate a generic app or continue the discussion.',
         `AppSpec JSON schema:\n${JSON.stringify(appSpecSchema)}`,
         `User request:\n${prompt.trim()}`,
       ].join('\n\n'),

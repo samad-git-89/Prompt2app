@@ -74,6 +74,7 @@ export default async function handler(req, res) {
       response: `Generated ${result.files.length} validated files for ${result.spec.name}. Save them to a folder or download them below.`,
       files: result.files,
       spec: result.spec,
+      isConversational: false,
     });
   } catch (error) {
     if (customApiKey) {

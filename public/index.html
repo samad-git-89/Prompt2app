@@ -603,6 +603,12 @@
             white-space: pre-wrap;
         }
         .ai-bubble { padding: 0.25rem 0; }
+        .reasoning-trace {
+            margin: 0;
+            color: #788398;
+            font-size: 0.74rem;
+            line-height: 1.45;
+        }
         .user-bubble {
             padding: 0.75rem 1rem;
             border: 1px solid rgba(191, 219, 254, 0.15);
@@ -630,6 +636,31 @@
             font-size: 0.75rem;
             transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
         }
+        .response-time {
+            margin-top: -0.3rem;
+            color: #788398;
+            font-size: 0.7rem;
+        }
+        .inline-conversational-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+        }
+        .action-pill {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid rgba(174, 190, 220, 0.16);
+            border-radius: 999px;
+            background: rgba(20, 27, 42, 0.76);
+            color: #c6cede;
+            cursor: pointer;
+            font-size: 0.74rem;
+            transition: border-color 160ms ease, background 160ms ease;
+        }
+        .action-pill:hover:not(:disabled) {
+            border-color: rgba(165, 180, 252, 0.4);
+            background: rgba(34, 44, 66, 0.95);
+        }
+        .action-pill:disabled { cursor: wait; opacity: 0.6; }
         .utility-button:hover, .utility-button[aria-pressed="true"] {
             border-color: rgba(174, 190, 220, 0.12);
             background: rgba(174, 190, 220, 0.07);
@@ -1276,6 +1307,11 @@
         let activeRequestId = 0;
         let recentProjects = readRecentProjects();
         const conversationHistory = [];
+        const conversationalActions = [
+            { label: 'Build the MVP', prompt: 'Build the MVP for the app idea we just discussed' },
+            { label: 'Add a smart touch', prompt: 'Add a smart touch to this app idea before we build it' },
+            { label: 'See one more', prompt: 'Suggest a different practical app idea with a clear first version and everyday payoff.' },
+        ];
         managedModeInput.checked = executionMode === 'managed';
         byoModeInput.checked = executionMode === 'byo';
 
@@ -1899,6 +1935,13 @@
             return { bubble, row, messageContent };
         }
 
+        function addReasoningTrace(messageContent, bubble, thinking) {
+            const trace = document.createElement('p');
+            trace.className = 'reasoning-trace';
+            trace.textContent = thinking;
+            messageContent.insertBefore(trace, bubble);
+        }
+
         function scrollConversationToBottom() {
             chatFeed.scrollTo({ top: chatFeed.scrollHeight, behavior: 'smooth' });
         }
@@ -1943,6 +1986,13 @@
 
             messageContent.appendChild(utilityRow);
             scrollConversationToBottom();
+        }
+
+        function addResponseTimeBadge(messageContent, elapsedSeconds) {
+            const responseTime = document.createElement('div');
+            responseTime.className = 'response-time';
+            responseTime.textContent = `✦ Worked for ${elapsedSeconds.toFixed(1)}s`;
+            messageContent.appendChild(responseTime);
         }
 
         function validateGeneratedFiles(files) {
@@ -2253,9 +2303,27 @@
             scrollConversationToBottom();
         }
 
-        function renderQuickReplies() {
+        function addConversationalActionPills(container) {
+            const actionRow = document.createElement('div');
+            actionRow.className = 'inline-conversational-actions';
+            for (const action of conversationalActions) {
+                const button = document.createElement('button');
+                button.className = 'action-pill';
+                button.type = 'button';
+                button.textContent = action.label;
+                button.addEventListener('click', () => {
+                    void sendMessage(action.prompt, followupInput, followupSubmit);
+                });
+                actionRow.appendChild(button);
+            }
+            container.appendChild(actionRow);
+        }
+
+        function renderQuickReplies(isConversational = false) {
             quickReplies.replaceChildren();
-            const choices = hasGeneratedAnyApp
+            const choices = isConversational
+                ? conversationalActions
+                : hasGeneratedAnyApp
                 ? ['Keep it simple', 'Add user accounts', 'Show me another direction']
                 : [
                     'A SaaS dashboard to track team projects and tasks',
@@ -2266,9 +2334,13 @@
                 const button = document.createElement('button');
                 button.className = 'quick-reply';
                 button.type = 'button';
-                button.textContent = choice;
+                button.textContent = typeof choice === 'string' ? choice : choice.label;
                 button.addEventListener('click', () => {
-                    void sendMessage(choice, followupInput, followupSubmit);
+                    void sendMessage(
+                        typeof choice === 'string' ? choice : choice.prompt,
+                        followupInput,
+                        followupSubmit,
+                    );
                 });
                 quickReplies.appendChild(button);
             }
@@ -2308,6 +2380,7 @@
                 openModal('api-keys-required-modal');
                 return;
             }
+            const startedAt = performance.now();
             const requestId = ++activeRequestId;
             conversationHistory.push({ role: 'user', content: message });
             addMessageToFeed(message, true);
@@ -2320,11 +2393,7 @@
             hasConversationStarted = true;
             setUXState(currentUXState === 'idle' ? 'conversing' : currentUXState);
             try {
-                const response = await fetch('/api/backend-api', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: buildConversationPrompt() }),
-                });
+                const response = await fetch('/api/backend-api', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: buildConversationPrompt() }) });
                 const responseText = await response.text();
                 let data;
                 try {
@@ -2345,9 +2414,22 @@
                         throw new Error('The app server returned invalid generated files.');
                     }
                 }
+                const fullResponse = data.response;
+                const thinkingMatch = fullResponse.match(/^Thinking:\s*([^\r\n]+)\r?\n\r?\n([\s\S]*)$/);
+                const assistantReply = (thinkingMatch ? thinkingMatch[2] : fullResponse).trim();
+                const reasoning = thinkingMatch?.[1].trim()
+                    || (data.isConversational
+                        ? 'Choosing a useful next step based on your idea.'
+                        : 'Turning the conversation into a working first version.');
+                addReasoningTrace(assistantMessage.messageContent, responseBubble, reasoning);
+                data.response = assistantReply;
                 responseBubble.textContent = data.response;
                 conversationHistory.push({ role: 'assistant', content: data.response });
                 addResponseUtilities(assistantMessage.messageContent, data.response);
+                addResponseTimeBadge(assistantMessage.messageContent, (performance.now() - startedAt) / 1000);
+                if (data.isConversational) {
+                    addConversationalActionPills(assistantMessage.messageContent);
+                }
                 if (hasGeneratedFiles) {
                     hasGeneratedAnyApp = true;
                     latestSpec = data.spec;
@@ -2359,9 +2441,9 @@
                     }
                 }
                 hasConversationStarted = true;
-                if (data.response.includes('?')) {
+                if (data.isConversational || assistantReply.includes('?')) {
                     setUXState('gathering_specs');
-                    renderQuickReplies();
+                    renderQuickReplies(data.isConversational === true);
                     followupStatus.textContent = 'A little more detail will help shape your app.';
                 } else {
                     setUXState('conversing');
@@ -2372,6 +2454,7 @@
                 console.error('Error sending message to assistant:', error);
                 responseBubble.textContent = `Sorry, I couldn't get a response just now. ${error.message}`;
                 addResponseUtilities(assistantMessage.messageContent, responseBubble.textContent);
+                addResponseTimeBadge(assistantMessage.messageContent, (performance.now() - startedAt) / 1000);
                 hasConversationStarted = true;
                 setUXState('conversing');
                 followupStatus.textContent = 'You can try sending your message again.';

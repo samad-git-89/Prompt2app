@@ -6,6 +6,7 @@ import { PassThrough } from 'node:stream';
 import {
   generatePostgresSchema,
   isConversationalGreeting,
+  runConversationalTurn,
   runPipeline,
   runVisionInference,
   validateAppSpec,
@@ -447,6 +448,12 @@ test('public page sends chat messages to the same-origin backend and safely hand
   assert.match(html, /clarification-pane/);
   assert.match(html, /quick-reply/);
   assert.match(html, /followup-composer/);
+  assert.match(html, /const startedAt = performance\.now\(\)/);
+  assert.match(html, /className = 'reasoning-trace'/);
+  assert.match(html, /Worked for \$\{elapsedSeconds\.toFixed\(1\)\}s/);
+  assert.match(html, /Build the MVP for the app idea we just discussed/);
+  assert.match(html, /Add a smart touch to this app idea before we build it/);
+  assert.match(html, /Suggest a different practical app idea with a clear first version and everyday payoff\./);
   assert.match(html, /setUXState\('gathering_specs'\)/);
   assert.doesNotMatch(html, /\bisBuildIntent\b|const isBuildIntent\s*=/);
   assert.match(html, /document\.body\.dataset\.uxState = currentUXState/);
@@ -594,6 +601,7 @@ test('backend route generates files through a forced tool call and returns them 
   try {
     await backendApi({ method: 'POST', body: { message: 'Build a dashboard' } }, response);
     assert.equal(response.statusCode, 200);
+    assert.equal(response.body.isConversational, false);
     assert.match(response.body.response, /Generated \d+ validated files for Task list/);
     assert.ok(response.body.files.some(({ path }) => path === 'public/index.html'));
     const generatedSchema = response.body.files.find(({ path }) => path === 'supabase/schema.sql');
@@ -916,6 +924,40 @@ test('recognizes general app discovery questions as conversational', () => {
   assert.equal(isConversationalGreeting('what kind of app can we build ?'), true);
   assert.equal(isConversationalGreeting('what can we build today?'), true);
   assert.equal(isConversationalGreeting('Build a SaaS dashboard'), false);
+});
+
+test('recognizes app ideation and refinement while keeping explicit build requests on the pipeline', () => {
+  assert.equal(isConversationalGreeting('no idea, can you provide an idea'), true);
+  assert.equal(isConversationalGreeting('give any app idea to build'), true);
+  assert.equal(isConversationalGreeting('Suggest a different practical app idea with a clear first version and everyday payoff.'), true);
+  assert.equal(isConversationalGreeting('Add a smart touch to this app idea'), true);
+  assert.equal(isConversationalGreeting('Build the MVP for the app idea we just discussed'), false);
+  assert.equal(isConversationalGreeting('Create a portfolio site'), false);
+  assert.equal(isConversationalGreeting('A SaaS dashboard to track team projects and tasks'), false);
+});
+
+test('conversational replies include a concise trace and end with a question', async () => {
+  let requestBody;
+  const response = await runConversationalTurn({
+    prompt: 'no idea, can you provide an idea',
+    apiKey: 'test-gemini-key',
+    fetchImpl: async (_url, request) => {
+      requestBody = JSON.parse(request.body);
+      return new Response(JSON.stringify({
+        candidates: [{
+          content: {
+            parts: [{
+              text: 'Build idea: **Client Nudge** — Keep client follow-ups from slipping through the cracks.\n\nMVP: A client list, follow-up dates, and a one-tap reminder.\n\nThe everyday payoff: Spend less time remembering who to contact.\n\nWant to take this app idea further?',
+            }],
+          },
+        }],
+      }));
+    },
+  });
+
+  assert.match(requestBody.systemInstruction.parts[0].text, /named, practical micro-app/);
+  assert.match(response, /^Thinking: .+\n\nBuild idea:/);
+  assert.match(response, /\?$/);
 });
 
 test('backend responds conversationally to simple greetings without generating dummy app files', async () => {
